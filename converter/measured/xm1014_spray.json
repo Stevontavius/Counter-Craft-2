@@ -1,0 +1,60 @@
+{
+ "gun": "xm1014",
+ "source": "CS2 offline measurement (measure_all.py + analyze_video.py)",
+ "meta": {
+  "gun": "xm1014",
+  "pitch": 25,
+  "yaw": 10,
+  "cycle": 0.35,
+  "clip": 7,
+  "auto": true,
+  "marker_time": 0.21,
+  "timescale": 1.0,
+  "spray_seconds": 2.874,
+  "slot": "slot1"
+ },
+ "units": "bullet offset from the crosshair, degrees [up, right]",
+ "shots": [
+  [
+   0.142,
+   0.299
+  ],
+  [
+   1.147,
+   -0.96
+  ],
+  [
+   2.22,
+   -0.506
+  ],
+  [
+   3.98,
+   -0.704
+  ],
+  [
+   4.831,
+   0.187
+  ]
+ ],
+ "shot_frames": [
+  177,
+  199,
+  220,
+  262,
+  283
+ ],
+ "shot_times": [
+  0.0,
+  0.3667,
+  0.7167,
+  1.4167,
+  1.7667
+ ],
+ "expected": 7,
+ "recovery": {
+  "exp": 2.6452,
+  "lin_camera": 9.158,
+  "rms": 0.0207,
+  "start": 3.627
+ }
+}

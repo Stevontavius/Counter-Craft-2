@@ -1,0 +1,28 @@
+{
+ "display": {
+  "icon": {
+   "id": "countercraft:ak47"
+  },
+  "title": {
+   "text": "Counter-Craft 2"
+  },
+  "description": {
+   "text": "Counter-Strike 2, in Minecraft"
+  },
+  "frame": "task",
+  "show_toast": false,
+  "announce_to_chat": false,
+  "hidden": false,
+  "background": "minecraft:block/sandstone_top"
+ },
+ "criteria": {
+  "tick": {
+   "trigger": "minecraft:tick"
+  }
+ },
+ "requirements": [
+  [
+   "tick"
+  ]
+ ]
+}

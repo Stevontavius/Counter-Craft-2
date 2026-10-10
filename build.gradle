@@ -1,0 +1,142 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+base {
+	archivesName = 'countercraft'
+}
+
+repositories {
+	mavenCentral()
+}
+
+loom {
+	splitEnvironmentSourceSets()
+	mods {
+		"countercraft" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+	runs {
+		client {
+			programArgs "--width", "1600", "--height", "900"
+			// dev: `gradlew runClient -PquickPlay=<world>` loads straight into run/saves/<world>
+			if (project.hasProperty("quickPlay")) {
+				programArgs "--quickPlaySingleplayer", project.property("quickPlay").toString()
+			}
+			vmArgs "--enable-native-access=ALL-UNNAMED"
+		}
+		// dev: `gradlew runServerGui` starts a dedicated server with its window (CC2's), in run-server/
+		serverGui {
+			server()
+			serverWithGui()
+			name "Server (window)"
+			runDir "run-server"
+		}
+	}
+}
+
+// `gradlew testEnv` (test-multiplayer.bat): java argument files for the dev client and the windowed dev server
+// (build/testenv/*.args), so the bat can run a server and two clients at once (gradle runs one task at a time)
+tasks.register("testEnv") {
+	dependsOn "classes", "clientClasses"
+	notCompatibleWithConfigurationCache("reads the run tasks' launch setup")
+	doLast {
+		def out = file("build/testenv")
+		out.mkdirs()
+		def q = { String a -> def f = a.replace('\\', '/'); f.contains(' ') ? '"' + f + '"' : f }
+		// the classpath Loom's own runs use (it passes it in an argument file, which can't nest in another one)
+		[client: ["runClient", sourceSets.client], server: ["runServerGui", sourceSets.main]].each { name, run ->
+			def t = tasks.getByName(run[0])
+			def lines = t.allJvmArgs.findAll { !it.startsWith("@") }.collect { q(it) }
+			lines += ["-cp", q(run[1].runtimeClasspath.asPath)]
+			lines += t.mainClass.get()
+			lines += t.args.collect { q(it) }
+			new File(out, "${name}.args").text = lines.join("\n") + "\n"
+		}
+		println "test launch files written to ${out}"
+	}
+}
+
+// `gradlew installerJar` (CC2 Installer.bat): the installer, a plain Swing app (src/installer), with the mod, Fabric API
+// and Fabric Loader's library list (for the Minecraft Launcher's version file) inside under bundle/
+sourceSets {
+	installer
+}
+
+tasks.register("installerJar", Jar) {
+	notCompatibleWithConfigurationCache("bundles files from the runtime classpath")
+	archiveFileName = "countercraft-installer.jar"
+	from sourceSets.installer.output
+	into("bundle/mods") {
+		from tasks.named("jar")
+		from { configurations.runtimeClasspath.filter { it.name == "fabric-api-${project.fabric_api_version}.jar" } }
+	}
+	into("bundle") {
+		from({ zipTree(configurations.runtimeClasspath.find { it.name == "fabric-loader-${project.loader_version}.jar" }) }) {
+			include "fabric-installer.json"
+		}
+	}
+	manifest {
+		attributes "Main-Class": "dev.countercraft.installer.CcInstaller"
+	}
+}
+
+// `gradlew installerBeta`: the BETA 1.0 test build of the installer, in INSTALLERTESTBETA/ (installerJar and its jar stay as
+// they are): the same contents, its own folder and name
+tasks.register("installerBeta", Jar) {
+	notCompatibleWithConfigurationCache("bundles files from the runtime classpath")
+	destinationDirectory = file("INSTALLERTESTBETA")
+	archiveFileName = "CC2-Installer-BETA-1.0.jar"
+	from sourceSets.installer.output
+	from("LICENSE") {
+		into "legal"
+	}
+	// the converter (our own scripts and measurements), so the installer works on its own: it unpacks them to build the pack
+	into("bundle/converter") {
+		from("converter") {
+			include "*.py", "agent/*.py", "guns.json", "measured/*.json"
+		}
+	}
+	into("bundle/mods") {
+		from tasks.named("jar")
+		from { configurations.runtimeClasspath.filter { it.name == "fabric-api-${project.fabric_api_version}.jar" } }
+	}
+	into("bundle") {
+		from({ zipTree(configurations.runtimeClasspath.find { it.name == "fabric-loader-${project.loader_version}.jar" }) }) {
+			include "fabric-installer.json"
+		}
+	}
+	manifest {
+		attributes "Main-Class": "dev.countercraft.installer.CcInstaller", "Implementation-Version": "BETA 1.0"
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	// Brotli decoder for Skinport's price list (Skins Options inventory value); bundled in the jar
+	include(implementation("org.brotli:dec:0.1.2"))
+}
+
+// the license in the mod's jar (LICENSE_countercraft, as Fabric's template names it)
+tasks.named("jar") {
+	from("LICENSE") {
+		rename { "${it}_countercraft" }
+	}
+}
+
+processResources {
+	def version = project.version
+	inputs.property "version", version
+	filesMatching("fabric.mod.json") { expand "version": version }
+}
+
+tasks.withType(JavaCompile).configureEach { it.options.release = 25 }
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}

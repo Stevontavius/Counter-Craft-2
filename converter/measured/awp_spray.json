@@ -1,0 +1,55 @@
+{
+ "gun": "awp",
+ "source": "CS2 offline measurement (measure_all.py + analyze_video.py)",
+ "meta": {
+  "gun": "awp",
+  "pitch": 25,
+  "yaw": -10,
+  "cycle": 1.455,
+  "clip": 5,
+  "auto": false,
+  "marker_time": 0.873,
+  "timescale": 1.0,
+  "spray_seconds": 7.549,
+  "slot": "slot1"
+ },
+ "units": "bullet offset from the crosshair, degrees [up, right]",
+ "shots": [
+  [
+   -0.006,
+   -0.027
+  ],
+  [
+   -0.004,
+   0.065
+  ],
+  [
+   -0.015,
+   0.064
+  ],
+  [
+   -0.012,
+   0.001
+  ],
+  [
+   0.008,
+   0.055
+  ]
+ ],
+ "shot_frames": [
+  161,
+  253,
+  342,
+  433,
+  523
+ ],
+ "shot_times": [
+  0.0,
+  1.5333,
+  3.0167,
+  4.5333,
+  6.0333
+ ],
+ "expected": 5,
+ "recovery": null
+}

@@ -1,0 +1,74 @@
+# COUNTER-CRAFT 2 — BETA 1.0
+A free, fan-made Minecraft mod that brings Counter-Strike 2's weapons, movement and style into survival Minecraft.
+Made by Steven. The mod's own code is released under the PolyForm Noncommercial License 1.0.0 (polyformproject.org/licenses/noncommercial/1.0.0): free for any noncommercial use, not for commercial use. It comes "as is", without warranty of any kind.
+
+# NOT OFFICIAL
+NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.
+Counter-Craft 2 is not affiliated with, endorsed, sponsored or approved by Valve Corporation.
+
+# TRADEMARKS
+Counter-Strike, Counter-Strike 2, CS2, Steam, the Steam logo and the Counter-Strike logos are trademarks and/or registered trademarks of Valve Corporation in the U.S. and/or other countries.
+Minecraft is a trademark of Mojang Synergies AB. All other trademarks belong to their respective owners.
+These names are used only to describe what the mod is compatible with and inspired by.
+
+# GAME FILES
+This mod doesn't contain Counter-Strike 2's files: no CS2 models, textures, sounds, music, maps, fonts or other artwork ship with it. It does include weapon statistics (damage, fire rate and the like) read from Counter-Strike 2's game data.
+CS2 visuals and audio are built on your own computer by the Counter-Craft converter, from your own legally obtained copy of Counter-Strike 2, for your personal use only.
+Please do not share, upload or sell the resource pack the converter creates. It contains Valve's work.
+
+# YOUR ACCOUNTS
+Counter-Craft 2 does not request or collect your account passwords or authentication credentials. Public player statistics may be retrieved from supported services. Your statistics and preferences are stored locally and are not uploaded to Counter-Craft-operated servers.
+The MC Stats buttons open public stats websites (Plancke, 25Karma, NameMC, Xbox) in your web browser, with your public Minecraft name or the gamertag you type in the address. Those websites are run by other people and have their own privacy policies. Counter-Craft 2 sends them nothing itself, and doesn't save the gamertag.
+Hypixel stats (optional): Hypixel only shares stats with an API key, so MC Stats asks you to paste your own free developer key from developer.hypixel.net. This is the only key Counter-Craft 2 ever accepts. It is not your Minecraft, Microsoft or Hypixel password. It is saved only on your computer (config/countercraft_hypixel.json) and sent only to Hypixel (api.hypixel.net), with your Minecraft UUID, to ask for your stats. Delete it with Forget key on the Hypixel page, or by deleting that file.
+
+# STEAM ACCOUNT: OVERVIEW
+Linking a Steam account is optional. Everything else in Counter-Craft 2 works without it.
+Counter-Craft 2 never sees, asks for, stores or sends your Steam password, Steam Guard codes, login tokens, cookies or API keys.
+It cannot sign in as you, trade, sell, buy, move, list or change any item, change your profile, send messages, or do anything else on your account. It only reads information Steam already shows to the public.
+Counter-Craft 2 is not a Steam or Valve service, and linking it is not an agreement with Valve.
+
+# HOW SIGNING IN WORKS
+1. On the Steam Account screen you click Sign in through Steam, and Minecraft shows you the exact address first. Counter-Craft 2 opens Steam's own "Sign in through Steam" page (steamcommunity.com/openid/login) in your normal web browser.
+2. You sign in on Steam's website, not in Minecraft. Your password goes only to Steam.
+3. Steam sends your browser back to a temporary address on your own computer (http://127.0.0.1, which only your computer can reach) with a signed message that says which SteamID64 you signed in as. That address closes after the sign-in, or after 10 minutes.
+4. The game (or the server you're playing on) asks Steam directly whether that message is real. Messages that are fake, more than 5 minutes old, used before, or not from Steam are refused.
+5. If Steam confirms it, the only thing kept is your SteamID64: the public 17-digit number in your profile's address.
+
+# WHAT IS READ FROM YOUR ACCOUNT
+Only public pages, with no login and no API key:
+- Your public Steam profile (steamcommunity.com/profiles/<id>): display name, avatar picture, Steam level, and CS2 hours when your profile lists them.
+- Your public CS2 inventory (steamcommunity.com/inventory/<id>/730/2): the names of the CS2 items you own. This is used to unlock the same skins, agents, knives, gloves and music kits in Counter-Craft 2, and for the Genuine Skins check mark.
+- Your public match stats from Leetify (api-public.cs-prod.leetify.com): ranks, ratings, win rates and recent matches, for My CS2 Stats. This only works if Leetify has your profile.
+- Item prices from Skinport's public price list (api.skinport.com), to show what an inventory is worth. Nothing about you is sent to Skinport.
+If your profile or inventory is private, nothing is read, and the game tells you so.
+How often: when you link, when you press Refresh stats or Refresh inventory, when you join a world, about every 10 minutes while you play, and every 5 minutes while your profile card is on the title screen. In a world, Refresh inventory can be used at most once every 30 seconds.
+
+# FILES READ ON YOUR COMPUTER
+Read-only. Nothing is ever written to Steam's or CS2's folders.
+- MC Stats: Minecraft's own stats and advancements files for your player in the worlds saved in this game folder (saves/<world>/players/stats and players/advancements). They are added up on your computer and never uploaded.
+- Your CS2 playtime, from the Steam client's own file for your linked account (Steam/userdata/<account>/config/localconfig.vdf). Only that account's CS2 hours are used.
+- Only when you press Import from CS2 in Options > Music: your CS2 music volumes (cs2_machine_convars.vcfg). The crosshair import only uses a share code that you paste in.
+
+# WHAT IS STORED
+On your computer, in Minecraft's config folder:
+- countercraft_steam.json: your linked SteamID64. Nothing else.
+- countercraft_skins.json: the list of skins your copied inventory unlocked.
+- countercraft_runs.json: your Counter-Craft run records and stats.
+In a world's save, or on a server:
+- The server you sign in on saves your SteamID64 with your player data in that world. It does this so it can show your check mark, and it uses it to read your public CS2 inventory.
+- The server's log records your Minecraft name and SteamID64 when you link.
+- On any server that isn't your own singleplayer world, you have to sign in through Steam there. A server won't accept your link from another game or server.
+
+# WHAT OTHER PLAYERS SEE
+- The Genuine Skins check mark, which means: linked, and using your own inventory.
+- Your equipped skins, agents, knife, gloves and music kit (as in CS2).
+- Your SteamID64 is only sent to your own game, not to other players. Server operators can see it in the world files and the server log.
+
+# UNLINKING AND DELETING
+- Unlink on the Steam Account screen. Counter-Craft 2 stops reading your account at once, and the server you're on forgets your SteamID.
+- Worlds and servers you aren't connected to keep their copy until you join and unlink there, or their owner deletes it.
+- To remove everything from your computer, delete the countercraft_*.json files in Minecraft's config folder. You can delete single run records in My CS2 Stats.
+- To stop all public reads at any time, set your Steam profile and inventory to private.
+
+# OTHER PLAYERS' SKINS
+Skins Options can copy any public inventory by its Steam profile link. This reads only what that profile already shows the public. Using an inventory that isn't yours turns off your Genuine check mark.

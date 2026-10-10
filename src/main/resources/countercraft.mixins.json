@@ -1,0 +1,12 @@
+{
+	"required": true,
+	"package": "dev.countercraft.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": ["AvatarMixin", "EntityStepMixin", "InventoryMixin",
+		"SensingMixin",
+		"CombatTrackerMixin",
+		"ServerPlayerDropMixin", "InventoryMenuMixin", "PlayerFallMixin", "HardcorePvpMixin",
+		"ConnectionAccessor", "BotKeepAliveMixin", "NoKnockbackMixin",
+		"BotJoinMessageMixin", "BotLeaveMessageMixin", "ChatNameMixin", "GenuineNameMixin", "SlotMixin", "ContainerMenuMixin", "PlayerAdvancementsMixin", "CreeperAccessor", "SpectateLockMixin", "DedicatedServerGuiMixin"],
+	"injectors": { "defaultRequire": 1 }
+}

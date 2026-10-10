@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/root",
+ "display": {
+  "icon": {
+   "id": "countercraft:flashbang"
+  },
+  "title": {
+   "text": "Blind Luck"
+  },
+  "description": {
+   "text": "Kill something while fully flashed"
+  },
+  "frame": "task",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

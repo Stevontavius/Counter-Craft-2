@@ -1,0 +1,102 @@
+{
+ "gun": "usp_silencer",
+ "source": "CS2 offline measurement (measure_all.py + analyze_video.py)",
+ "meta": {
+  "gun": "usp_silencer",
+  "pitch": 25,
+  "yaw": -10,
+  "cycle": 0.17,
+  "clip": 12,
+  "auto": false,
+  "marker_time": 0.102,
+  "timescale": 0.85,
+  "spray_seconds": 3.18,
+  "slot": "slot2"
+ },
+ "units": "bullet offset from the crosshair, degrees [up, right]",
+ "shots": [
+  [
+   -0.012,
+   -0.067
+  ],
+  [
+   0.15,
+   0.065
+  ],
+  [
+   0.222,
+   -0.069
+  ],
+  [
+   0.208,
+   0.067
+  ],
+  [
+   0.446,
+   -0.001
+  ],
+  [
+   0.396,
+   -0.002
+  ],
+  [
+   0.518,
+   -0.065
+  ],
+  [
+   0.472,
+   0.066
+  ],
+  [
+   0.497,
+   0.068
+  ],
+  [
+   0.599,
+   0.066
+  ],
+  [
+   0.484,
+   0.001
+  ],
+  [
+   0.487,
+   -0.066
+  ]
+ ],
+ "shot_frames": [
+  162,
+  179,
+  195,
+  211,
+  226,
+  242,
+  259,
+  274,
+  290,
+  306,
+  323,
+  338
+ ],
+ "shot_times": [
+  0.0,
+  0.2408,
+  0.4675,
+  0.6942,
+  0.9067,
+  1.1333,
+  1.3742,
+  1.5867,
+  1.8133,
+  2.04,
+  2.2808,
+  2.4933
+ ],
+ "expected": 12,
+ "recovery": {
+  "exp": 14.6287,
+  "lin_camera": 0.0,
+  "rms": 0.0143,
+  "start": 0.667
+ }
+}

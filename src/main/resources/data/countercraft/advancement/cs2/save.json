@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/eco_round",
+ "display": {
+  "icon": {
+   "id": "countercraft:ak47"
+  },
+  "title": {
+   "text": "Save!"
+  },
+  "description": {
+   "text": "Finish a day while carrying an expensive weapon without firing it"
+  },
+  "frame": "task",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

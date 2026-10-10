@@ -1,0 +1,26 @@
+{
+  "arms": {
+    "model": "agents/models/shared/arms/glove_fullfinger/glove_fullfinger.vmdl_c",
+    "mesh": "viewmodel"
+  },
+  "guns": {
+    "ak47": {
+      "model": "weapons/models/ak47/weapon_rif_ak47.vmdl_c",
+      "mesh": "body_hd",
+      "skip_materials": [
+        "sticker_gaps"
+      ],
+      "skeleton": "ak47.vnmskel",
+      "clip_dir": "animation/anims/viewmodel/rifle/rifle_ak/",
+      "clips": {
+        "idle": "idle_ak",
+        "draw": "draw_ak",
+        "shoot": "shoot1_ak",
+        "reload": "reload_ak",
+        "inspect": "lookat01_ak"
+      },
+      "fire_event": "Weapon_AK47.Single",
+      "icon": "panorama/images/econ/weapons/base_weapons/weapon_ak47_png.vtex_c"
+    }
+  }
+}

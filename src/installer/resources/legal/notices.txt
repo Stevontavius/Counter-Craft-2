@@ -1,0 +1,46 @@
+# ABOUT THESE NOTICES
+Please read these notices before installing Counter-Craft 2. They say what Counter-Craft 2 is, what it includes and what it doesn't, and the licenses of the software that comes with it. They don't give you any rights to anyone else's property.
+
+# AN INDEPENDENT, FAN-MADE PROJECT
+Counter-Craft 2 is an independent, fan-made Minecraft mod. It is not an official Valve product.
+Counter-Craft 2 is not affiliated with, sponsored by, approved by or endorsed by Valve Corporation, Microsoft or Mojang Studios.
+NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.
+
+# COUNTER-STRIKE GAME FILES
+Counter-Craft 2 does not include or distribute Counter-Strike's models, textures, sounds, music, animations, maps or other game files. Nothing is downloaded from Valve or anyone else to make them.
+The asset pack is built on your computer, by this installer, from the copy of Counter-Strike 2 installed on your computer (and, if you choose its weapon sounds, your copy of Counter-Strike: Global Offensive). You must supply these from your own installed copies of the games.
+The asset pack is made for your personal use with games you own. It contains Valve's work: please don't share, upload or sell it.
+The mod itself contains some reference data it needs to work with the converted files: weapon statistics (damage, fire rate and the like) read from Counter-Strike 2's game data.
+
+# SOURCE CODE
+Counter-Craft 2's own source code was written independently for this project and does not contain Valve's proprietary source code. Counter-Strike's file formats are read with independent, openly licensed tools, listed below.
+
+# TRADEMARKS
+Counter-Strike, Counter-Strike 2, CS2, CS:GO, Steam and the Counter-Strike logos are trademarks and/or registered trademarks of Valve Corporation in the U.S. and/or other countries. Minecraft is a trademark of Mojang Synergies AB. Microsoft and Windows are trademarks of the Microsoft group of companies.
+Counter-Strike, Minecraft and their trademarks, logos and other protected material belong to their respective owners. These names are used only to describe what Counter-Craft 2 works with and is inspired by.
+
+# NO WARRANTY
+Counter-Craft 2 and this installer are provided "as is", without warranty of any kind. You use them, and build the asset pack, at your own risk. Keep backups of worlds you care about.
+
+# WHAT THE INSTALLER CHANGES ON YOUR COMPUTER
+- It reads your Counter-Strike installs and never changes them.
+- It builds the asset pack in the folder you choose. The pack stays there, so a later update can skip building when nothing changed.
+- It adds a new Counter-Craft 2 profile with its own game folder (Minecraft Launcher), or a new Counter-Craft 2 instance (Prism Launcher or MultiMC), or updates one it made before. Your other profiles, instances and worlds aren't changed.
+- Before it changes the Minecraft Launcher's profiles file, it keeps a copy next to it (launcher_profiles.json.cc2-backup).
+- It doesn't save your choices. The next time it starts, it looks for your games again.
+- It keeps a log of its last run in your temporary folder (cc2-installer.log).
+
+# LICENSES
+Counter-Craft 2: the PolyForm Noncommercial License 1.0.0 (below). Any noncommercial use is permitted; commercial use is not.
+Included with this installer:
+- Fabric API (FabricMC): the Apache License 2.0 (below).
+- Brotli decoder (org.brotli:dec, inside the mod): the MIT License (below; also in the mod as LICENSE_brotli).
+Downloaded by your Minecraft launcher when you first play, not by this installer:
+- Minecraft: Mojang's Minecraft End User License Agreement.
+- Fabric Loader (FabricMC): the Apache License 2.0. It uses Sponge Mixin (MIT License) and ASM (BSD 3-Clause License).
+Used to build the asset pack. Counter-Craft 2 doesn't include them: your PC downloads them from their official releases when you press Download (uv downloads NumPy, Pillow and OpenEXR):
+- Source 2 Viewer (ValveResourceFormat, an independent project, not Valve's): the MIT License.
+- FFmpeg (this build): the GNU General Public License, version 3.
+- uv (Astral): the Apache License 2.0 or the MIT License.
+- NumPy: the BSD 3-Clause License. Pillow: the MIT-CMU License. OpenEXR: the BSD 3-Clause License.
+The installer draws its text with fonts already on your computer (Segoe UI, Consolas). No fonts are included.

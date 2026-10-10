@@ -1,0 +1,14 @@
+{
+	"gameMode.hardcore": "Counter-Craft Mode",
+	"options.difficulty.hardcore": "Counter-Craft",
+	"selectWorld.gameMode.hardcore": "Counter-Craft",
+	"selectWorld.gameMode.hardcore.info": "Co-op survival locked to 'Hard' difficulty. Pick a team, earn everything, and you can't respawn if you die.",
+	"selectWorld.gameMode.hardcore.line1": "Co-op survival locked at hardest difficulty,",
+	"selectWorld.gameMode.hardcore.line2": "team locked for 50 days, and one life only",
+	"mco.upload.hardcore": "Counter-Craft worlds can't be uploaded!",
+	"editGamerule.inGame.disabled.hardcore.tooltip": "Cannot change game rules in a Counter-Craft world.",
+	"options.worldOptions.allow_commands.disabled.tooltip": "Cannot allow commands in a Counter-Craft world.",
+	"options.worldOptions.difficulty.disabled.hardcore.tooltip": "Cannot change the difficulty in a Counter-Craft world.",
+	"options.worldOptions.game_mode.disabled.tooltip": "Cannot change the game mode in a Counter-Craft world.",
+	"options.worldOptions.guest.force_game_mode.off.hardcore.tooltip": "Cannot change this setting in a Counter-Craft world."
+}

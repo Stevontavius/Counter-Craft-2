@@ -1,0 +1,85 @@
+{
+ "gun": "ssg08",
+ "source": "CS2 offline measurement (measure_all.py + analyze_video.py)",
+ "meta": {
+  "gun": "ssg08",
+  "pitch": 25,
+  "yaw": 0,
+  "cycle": 1.25,
+  "clip": 10,
+  "auto": false,
+  "marker_time": 0.75,
+  "timescale": 1.0,
+  "spray_seconds": 13.084,
+  "slot": "slot1"
+ },
+ "units": "bullet offset from the crosshair, degrees [up, right]",
+ "shots": [
+  [
+   -0.031,
+   0.002
+  ],
+  [
+   -0.0,
+   0.001
+  ],
+  [
+   -0.001,
+   0.002
+  ],
+  [
+   -0.0,
+   0.002
+  ],
+  [
+   -0.0,
+   0.001
+  ],
+  [
+   -0.001,
+   0.003
+  ],
+  [
+   -0.016,
+   0.002
+  ],
+  [
+   -0.003,
+   0.002
+  ],
+  [
+   -0.005,
+   0.002
+  ],
+  [
+   -0.001,
+   0.001
+  ]
+ ],
+ "shot_frames": [
+  161,
+  241,
+  318,
+  397,
+  476,
+  553,
+  633,
+  710,
+  789,
+  867
+ ],
+ "shot_times": [
+  0.0,
+  1.3333,
+  2.6167,
+  3.9333,
+  5.25,
+  6.5333,
+  7.8667,
+  9.15,
+  10.4667,
+  11.7667
+ ],
+ "expected": 10,
+ "recovery": null
+}

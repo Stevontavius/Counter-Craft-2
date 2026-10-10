@@ -1,0 +1,71 @@
+# gradle
+
+.gradle/
+build/
+out/
+classes/
+
+# eclipse
+
+*.launch
+
+# idea
+
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# vscode
+
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+
+# macos
+
+*.DS_Store
+
+# fabric
+
+run/
+run-server/
+
+# java
+
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr
+
+# local tools and extracted CS2 assets (never commit)
+tools/
+cs2-extract/
+cs2-pack*/
+run-a/
+run-b/
+
+# Counter-Craft 2: never publish Counter-Strike's files or anything built from them (they belong to Valve),
+# nor the third-party tools and test builds
+cs2-extract/
+cs2-pack/
+measure/
+run-a/
+run-b/
+tools/
+INSTALLERTESTBETA/
+*.vpk
+
+# Counter-Craft 2: personal notes, local tools and settings, release staging
+.claude/
+docs/
+MODDING_PLAN.md
+exceptions.txt
+converter/exceptions.txt
+test-multiplayer.bat
+CC2 Installer.bat
+release/
+__pycache__/
+*.pyc

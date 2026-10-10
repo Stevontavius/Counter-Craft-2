@@ -1,0 +1,67 @@
+{
+ "gun": "revolver",
+ "source": "CS2 offline measurement (measure_all.py + analyze_video.py)",
+ "meta": {
+  "gun": "revolver",
+  "pitch": 25,
+  "yaw": 10,
+  "cycle": 0.5,
+  "clip": 8,
+  "auto": true,
+  "marker_time": 0.3,
+  "timescale": 1.0,
+  "spray_seconds": 4.624,
+  "slot": "slot2"
+ },
+ "units": "bullet offset from the crosshair, degrees [up, right]",
+ "shots": [
+  [
+   0.004,
+   0.0
+  ],
+  [
+   0.0,
+   -0.048
+  ],
+  [
+   -0.01,
+   -0.063
+  ],
+  [
+   -0.005,
+   0.025
+  ],
+  [
+   -0.011,
+   -0.007
+  ],
+  [
+   -0.007,
+   -0.022
+  ],
+  [
+   0.001,
+   -0.036
+  ]
+ ],
+ "shot_frames": [
+  176,
+  219,
+  261,
+  303,
+  345,
+  388,
+  430
+ ],
+ "shot_times": [
+  0.0,
+  0.7167,
+  1.4167,
+  2.1167,
+  2.8167,
+  3.5333,
+  4.2333
+ ],
+ "expected": 8,
+ "recovery": null
+}

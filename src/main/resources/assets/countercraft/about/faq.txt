@@ -1,0 +1,26 @@
+# Edit this file to change the in-game Q&A (Counter-Craft 2 Options > About).
+# Lines starting with "Q:" are questions, "A:" are answers, "#" lines are comments. Blank lines are ignored.
+
+Q: Is this made by Valve or Mojang?
+A: No. Counter-Craft 2 is an unofficial fan project. It isn't affiliated with or endorsed by Valve, Mojang or Microsoft.
+
+Q: Do I need to own Counter-Strike 2?
+A: Yes. The Counter-Craft 2 installer builds the asset pack and the weapon table from your own CS2 install, and the mod needs both to run. Nothing from CS2 ships with the mod.
+
+Q: Can I share the resource pack the converter makes?
+A: No. It's made from Valve's files and is for your personal use only. Anyone who wants it should run the converter on their own copy of CS2.
+
+Q: Does linking Steam put my account or items at risk?
+A: No. The mod never asks for your password and can't trade or move items. It only reads what's already public on your profile.
+
+Q: Why don't my Steam stats or inventory show up?
+A: Your Steam profile and inventory need to be public. Match stats come from Leetify, so they only show if Leetify has your profile.
+
+Q: What does the Genuine check mark mean?
+A: Your Steam account is linked and you're using your own inventory: no Skinchanger and no skins loaded from someone else.
+
+Q: Can I use this mod in a video or on a server?
+A: Yes. Please credit Counter-Craft 2, and follow Mojang's and Valve's own rules for videos and servers.
+
+Q: How can I donate?
+A: I do not accept donations. I do not or ever plan on making money off of this project. Counter-Craft is a love letter to both Counter-Strike 2 and Minecraft. I will never take sponsors, run advertisements or profit off of this. Your donation is your enjoyment. Go have fun. <3

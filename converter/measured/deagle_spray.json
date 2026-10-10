@@ -1,0 +1,72 @@
+{
+ "gun": "deagle",
+ "source": "CS2 offline measurement (measure_all.py + analyze_video.py)",
+ "meta": {
+  "gun": "deagle",
+  "pitch": 25,
+  "yaw": -10,
+  "cycle": 0.225,
+  "clip": 7,
+  "auto": false,
+  "marker_time": 0.135,
+  "timescale": 1.0,
+  "spray_seconds": 1.963,
+  "slot": "slot2"
+ },
+ "units": "bullet offset from the crosshair, degrees [up, right]",
+ "shots": [
+  [
+   -0.004,
+   0.072
+  ],
+  [
+   0.195,
+   -0.223
+  ],
+  [
+   2.231,
+   0.394
+  ],
+  [
+   1.736,
+   0.596
+  ],
+  [
+   1.494,
+   0.165
+  ],
+  [
+   3.374,
+   -0.641
+  ],
+  [
+   4.047,
+   -1.045
+  ]
+ ],
+ "shot_frames": [
+  165,
+  181,
+  198,
+  215,
+  232,
+  249,
+  266
+ ],
+ "shot_times": [
+  0.0,
+  0.2667,
+  0.55,
+  0.8333,
+  1.1167,
+  1.4,
+  1.6833
+ ],
+ "expected": 7,
+ "recovery": {
+  "exp": 3.3997,
+  "lin_camera": 6.306,
+  "rms": 0.0263,
+  "start": 2.247
+ }
+}

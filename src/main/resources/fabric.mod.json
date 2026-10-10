@@ -1,0 +1,33 @@
+{
+	"schemaVersion": 1,
+	"id": "countercraft",
+	"version": "${version}",
+	"name": "Counter-Craft 2",
+	"description": "A fan-made, noncommercial Minecraft mod inspired by Counter-Strike. Unofficial: not affiliated with or endorsed by Valve, Mojang or Microsoft. Contains no Counter-Strike models, textures or sounds: those are converted on your PC from your own copy of the game.",
+	"authors": [
+		"Steven"
+	],
+	"license": "PolyForm-Noncommercial-1.0.0",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"dev.countercraft.CounterCraft"
+		],
+		"client": [
+			"dev.countercraft.client.CounterCraftClient"
+		]
+	},
+	"mixins": [
+		"countercraft.mixins.json",
+		{
+			"config": "countercraft.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

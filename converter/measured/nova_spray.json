@@ -1,0 +1,73 @@
+{
+ "gun": "nova",
+ "source": "CS2 offline measurement (measure_all.py + analyze_video.py)",
+ "meta": {
+  "gun": "nova",
+  "pitch": 25,
+  "yaw": -10,
+  "cycle": 0.88,
+  "clip": 8,
+  "auto": false,
+  "marker_time": 0.528,
+  "timescale": 1.0,
+  "spray_seconds": 7.481,
+  "slot": "slot1"
+ },
+ "units": "bullet offset from the crosshair, degrees [up, right]",
+ "shots": [
+  [
+   -0.148,
+   -0.838
+  ],
+  [
+   -0.129,
+   -0.841
+  ],
+  [
+   -0.135,
+   -0.132
+  ],
+  [
+   0.033,
+   -0.221
+  ],
+  [
+   0.013,
+   -0.258
+  ],
+  [
+   0.025,
+   -0.396
+  ],
+  [
+   0.004,
+   -0.423
+  ],
+  [
+   0.021,
+   -0.391
+  ]
+ ],
+ "shot_frames": [
+  172,
+  229,
+  293,
+  345,
+  400,
+  452,
+  510,
+  568
+ ],
+ "shot_times": [
+  0.0,
+  0.95,
+  2.0167,
+  2.8833,
+  3.8,
+  4.6667,
+  5.6333,
+  6.6
+ ],
+ "expected": 8,
+ "recovery": null
+}

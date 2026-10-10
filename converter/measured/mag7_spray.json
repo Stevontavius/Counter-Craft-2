@@ -1,0 +1,48 @@
+{
+ "gun": "mag7",
+ "source": "CS2 offline measurement (measure_all.py + analyze_video.py)",
+ "meta": {
+  "gun": "mag7",
+  "pitch": 25,
+  "yaw": 10,
+  "cycle": 0.85,
+  "clip": 5,
+  "auto": false,
+  "marker_time": 0.51,
+  "timescale": 1.0,
+  "spray_seconds": 4.513,
+  "slot": "slot1"
+ },
+ "units": "bullet offset from the crosshair, degrees [up, right]",
+ "shots": [
+  [
+   -0.209,
+   0.219
+  ],
+  [
+   -0.212,
+   0.286
+  ],
+  [
+   -0.043,
+   -0.017
+  ]
+ ],
+ "shot_frames": [
+  161,
+  215,
+  270
+ ],
+ "shot_times": [
+  0.0,
+  0.9,
+  1.8167
+ ],
+ "expected": 5,
+ "recovery": {
+  "exp": 5.1173,
+  "lin_camera": 8.366,
+  "rms": 4.8136,
+  "start": 0.802
+ }
+}
