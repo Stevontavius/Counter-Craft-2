@@ -88,8 +88,8 @@ sell it.
 
 ## Installation
 
-1. Download **`Counter-Craft-2-Installer-BETA-1.0.jar`** from [Releases](../../releases).
-2. Run it: double-click it, use `Run Counter-Craft 2 Installer.bat`, or run `javaw -jar Counter-Craft-2-Installer-BETA-1.0.jar`.
+1. Download **`Counter-Craft-2-Installer-BETA-1.0.zip`** from [Releases](../../releases) and unzip it.
+2. Run **`Run Counter-Craft 2 Installer.bat`** (or double-click `Counter-Craft-2-Installer-BETA-1.0.jar`).
 3. Read the notices and licenses, then go through the steps:
 
    | Step | What happens |
@@ -110,7 +110,7 @@ and only files that differ are copied into your install; worlds and settings sta
 
 A server needs:
 
-1. **`Counter-Craft-2-BETA-1.0.jar`** and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
+1. **`Counter-Craft-2-Server-BETA-1.0.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
    (Minecraft 26.3, Fabric Loader 0.19.5).
 2. **The weapon table**: copy `config/countercraft/weapons.json` from a Counter-Craft 2 install into the server's
    `config/countercraft/` folder.
