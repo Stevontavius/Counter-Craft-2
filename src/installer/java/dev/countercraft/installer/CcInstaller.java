@@ -810,6 +810,7 @@ public final class CcInstaller extends JComponent {
 		String state = toolState.get(t);
 		int h = 52;
 		card(g, PAD, y, BW, h, have ? GOOD : WARN);
+		hit(PAD, y, BW, h, null, have ? t.name() + " is on this PC." : t.name() + " (" + t.license() + "): " + t.url()); // under the button
 		text(g, t.name(), PAD + 16, y + 22, TEXT, STRONG);
 		chip(g, have ? "FOUND" : "NEEDED", PAD + 16 + tw(t.name(), STRONG) + 10, y + 9, have ? GOOD : WARN);
 		String host = t.url().replaceFirst("https://github.com/([^/]+/[^/]+)/.*", "github.com/$1");
@@ -824,7 +825,6 @@ public final class CcInstaller extends JComponent {
 				text(g, fit(state, BW - 520, SMALL), PAD + BW - 230 - tw(fit(state, BW - 520, SMALL), SMALL), y + 31, BAD, SMALL);
 			}
 		}
-		hit(PAD, y, BW, h, null, have ? t.name() + " is on this PC." : t.name() + " (" + t.license() + "): " + t.url());
 		return y + h + 8;
 	}
 
