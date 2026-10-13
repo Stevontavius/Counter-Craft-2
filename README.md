@@ -14,7 +14,11 @@ A free, fan-made Fabric mod for Minecraft: Java Edition.
 [![Java](https://img.shields.io/badge/Java-25-e76f00?style=flat-square)](https://adoptium.net/)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-555?style=flat-square)](LICENSE)
 
-[Download](../../releases) · [Install](#installation) · [Servers](#playing-on-a-server) · [FAQ](#faq) · [Build from source](#building-from-source)
+<a href="https://youtu.be/MykB04JJEKU"><img src="https://img.youtube.com/vi/MykB04JJEKU/maxresdefault.jpg" alt="Counter-Craft 2 BETA trailer: watch on YouTube" width="720"></a>
+
+**▶ [Watch the BETA trailer on YouTube](https://youtu.be/MykB04JJEKU)**
+
+[Download](../../releases) · [Trailer](https://youtu.be/MykB04JJEKU) · [Install](#installation) · [Servers](#playing-on-a-server) · [FAQ](#faq) · [Build from source](#building-from-source)
 
 </div>
 
