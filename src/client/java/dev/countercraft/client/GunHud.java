@@ -11,9 +11,43 @@ import net.minecraft.world.item.ItemStack;
 import dev.countercraft.ModComponents;
 import dev.countercraft.gun.CsWeapon;
 
-/** Crosshair rules (CS2 snipers have none unscoped) and the scope overlay. */
-final class GunHud {
+/** Crosshair rules (CS2 snipers have none unscoped), the scope overlay, and CS2's cl_drawhud. */
+public final class GunHud {
+	/**
+	 * CS2's cl_drawhud: 0 hides the whole HUD (crosshair, chat, hotbar, every Counter-Craft panel and the pings), for
+	 * clean shots. Unlike Minecraft's F1, the hands and the viewmodel stay, and so do the sniper scope and a flashbang's
+	 * white-out (they're what you see, not HUD). Not saved: back on at the next start, as in CS2.
+	 */
+	public static boolean drawHud = true;
+
 	private GunHud() {
+	}
+
+	/** With cl_drawhud 0: only the scope (zoomed in) and the flashbang's white-out. */
+	public static void viewOverlays(GuiGraphicsExtractor g) {
+		Minecraft mc = Minecraft.getInstance();
+		GunSpec spec = GunClient.held(mc.player);
+		if (spec != null && !GunClient.ironsight(spec) && GunClient.zoomLevel() > 0) {
+			scope(g);
+		}
+		float a = flashAlpha();
+		if (a > 0.004f) {
+			g.fill(0, 0, g.guiWidth(), g.guiHeight(), ((int) (a * 255) << 24) | 0xFFFFFF);
+		}
+	}
+
+	static void registerCommand(com.mojang.brigadier.CommandDispatcher<net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource> d) {
+		d.register(net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal("cl_drawhud")
+				.executes(c -> {
+					c.getSource().sendFeedback(net.minecraft.network.chat.Component.literal("cl_drawhud " + (drawHud ? 1 : 0)));
+					return drawHud ? 1 : 0;
+				})
+				.then(net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument("value",
+						com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 1)).executes(c -> {
+					drawHud = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(c, "value") == 1;
+					c.getSource().sendFeedback(net.minecraft.network.chat.Component.literal("cl_drawhud " + (drawHud ? 1 : 0)));
+					return 1;
+				})));
 	}
 
 	static void register() {

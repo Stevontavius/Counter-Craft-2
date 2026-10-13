@@ -45,7 +45,7 @@ import javax.imageio.ImageIO;
  * interrupted copy is redone (by size and date) the next time.
  */
 final class Install {
-	static final String RELEASE = "BETA 1.1";
+	static final String RELEASE = "BETA 1.1.1";
 	static final String PACK = "CounterCraft-CS2-Assets";
 	static final String MC = "26.3";
 	static final String LOADER = "0.19.5";

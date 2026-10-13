@@ -298,6 +298,7 @@ public class CounterCraftClient implements ClientModInitializer {
 			MovementSettings.register(dispatcher);
 			RadioWheel.register(dispatcher);
 			dev.countercraft.client.crosshair.CrosshairSettings.register(dispatcher);
+			GunHud.registerCommand(dispatcher);
 		});
 		ClientTickEvents.START_CLIENT_TICK.register(GunClient::startTick);
 		ClientTickEvents.END_CLIENT_TICK.register(GunClient::endTick);

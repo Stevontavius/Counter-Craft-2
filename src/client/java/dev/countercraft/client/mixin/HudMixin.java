@@ -8,13 +8,19 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Like CS2, the HUD (vitals, weapons, money, paperdoll, crosshair) is gone while you're dead. */
+/**
+ * Like CS2, the HUD (vitals, weapons, money, paperdoll, crosshair) is gone while you're dead; and with cl_drawhud 0 it's
+ * gone but for the scope and a flashbang's white-out ({@link dev.countercraft.client.GunHud#drawHud}).
+ */
 @Mixin(Hud.class)
 abstract class HudMixin {
 	@Inject(method = "extractRenderState", at = @At("HEAD"), cancellable = true)
 	private void countercraft$hideWhenDead(final GuiGraphicsExtractor g, final DeltaTracker delta, final CallbackInfo ci) {
 		var p = net.minecraft.client.Minecraft.getInstance().player;
 		if (dev.countercraft.client.death.DeathCam.active() || p != null && p.isDeadOrDying()) {
+			ci.cancel();
+		} else if (!dev.countercraft.client.GunHud.drawHud) {
+			dev.countercraft.client.GunHud.viewOverlays(g);
 			ci.cancel();
 		}
 	}

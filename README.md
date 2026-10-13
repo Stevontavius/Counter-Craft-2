@@ -8,7 +8,7 @@
 
 A free, fan-made Fabric mod for Minecraft: Java Edition.
 
-[![Release](https://img.shields.io/badge/release-BETA%201.1-dcb45a?style=flat-square)](../../releases)
+[![Release](https://img.shields.io/badge/release-BETA%201.1.1-dcb45a?style=flat-square)](../../releases)
 [![Minecraft](https://img.shields.io/badge/Minecraft-26.3-62b47a?style=flat-square)](https://www.minecraft.net/)
 [![Fabric](https://img.shields.io/badge/Fabric%20Loader-0.19.5-dbd0b4?style=flat-square)](https://fabricmc.net/)
 [![Java](https://img.shields.io/badge/Java-25-e76f00?style=flat-square)](https://adoptium.net/)
@@ -56,6 +56,7 @@ A free, fan-made Fabric mod for Minecraft: Java Edition.
 - Loadouts with agents, weapon finishes, gloves and music kits. Link your Steam account (optional, public data only) to
   use the ones you own.
 - Weapon sound styles: Counter-Strike 2's, or CS:GO's if you have it installed.
+- `cl_drawhud 0` hides the whole HUD for clean recordings, keeping your hands and weapon on screen (unlike F1).
 - GPU-skinned player models, lit viewmodels, FXAA / TAA and texture quality settings.
 
 **Servers**
@@ -88,8 +89,8 @@ sell it.
 
 ## Installation
 
-1. Download **`Counter-Craft-2-Installer-BETA-1.1.zip`** from [Releases](../../releases) and unzip it.
-2. Run **`Run Counter-Craft 2 Installer.bat`** (or double-click `Counter-Craft-2-Installer-BETA-1.1.jar`).
+1. Download **`Counter-Craft-2-Installer-BETA-1.1.1.zip`** from [Releases](../../releases) and unzip it.
+2. Run **`Run Counter-Craft 2 Installer.bat`** (or double-click `Counter-Craft-2-Installer-BETA-1.1.1.jar`).
 3. Read the notices and licenses, then go through the steps:
 
    | Step | What happens |
@@ -115,7 +116,7 @@ Worlds and settings stay as they are.
 
 A server needs:
 
-1. **`Counter-Craft-2-Server-BETA-1.1.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
+1. **`Counter-Craft-2-Server-BETA-1.1.1.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
    (Minecraft 26.3, Fabric Loader 0.19.5).
 2. **The weapon table**: copy `config/countercraft/weapons.json` from a Counter-Craft 2 install into the server's
    `config/countercraft/` folder.

@@ -100,8 +100,8 @@ public final class Pings {
 	}
 
 	public static void submit(LevelRenderContext ctx) {
-		if (PINGS.isEmpty()) {
-			return;
+		if (PINGS.isEmpty() || !dev.countercraft.client.GunHud.drawHud) {
+			return; // cl_drawhud 0 hides pings with the rest of the HUD
 		}
 		Camera cam = Minecraft.getInstance().gameRenderer.mainCamera();
 		Vec3 eye = cam.position();
