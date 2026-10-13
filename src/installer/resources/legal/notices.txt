@@ -28,6 +28,7 @@ Counter-Craft 2 and this installer are provided "as is", without warranty of any
 - It adds a new Counter-Craft 2 profile with its own game folder (Minecraft Launcher), or a new Counter-Craft 2 instance (Prism Launcher or MultiMC), or updates one it made before. Your other profiles, instances and worlds aren't changed.
 - Before it changes the Minecraft Launcher's profiles file, it keeps a copy next to it (launcher_profiles.json.cc2-backup).
 - It doesn't save your choices. The next time it starts, it looks for your games again.
+- When it starts, it reads Counter-Craft 2's public list of releases on GitHub to see if there's a newer installer (nothing about you is sent). A new installer is only downloaded when you press Update Installer, and only used if it matches the checksum GitHub lists for it.
 - It keeps a log of its last run in your temporary folder (cc2-installer.log).
 
 # LICENSES

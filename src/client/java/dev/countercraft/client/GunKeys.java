@@ -26,10 +26,16 @@ public final class GunKeys {
 	public static final KeyMapping CS_MODE = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping("key.countercraft.cs_mode", InputConstants.Type.KEYBOARD, InputConstants.KEY_LALT, CATEGORY));
 
-	/** CS2 buy menu (B, like CS2). */
-	/** CS2 drop (G, like CS2): toss the CS weapon in hand. */
+	/** CS2 drop (G, like CS2): toss the CS weapon in hand. CS hotbar only (Minecraft's Drop, Q, drops in the hotbar). */
 	public static final KeyMapping DROP = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping("key.countercraft.drop", InputConstants.Type.KEYBOARD, InputConstants.KEY_G, CATEGORY));
+	/**
+	 * CS2 lastinv (Q, like CS2): back to the weapon held before. CS hotbar only; it shares Q with Minecraft's Drop, which
+	 * the CS hotbar ignores (G drops there) and the Minecraft hotbar keeps.
+	 */
+	public static final KeyMapping LAST_WEAPON = KeyMappingHelper.registerKeyMapping(
+			new KeyMapping("key.countercraft.lastinv", InputConstants.Type.KEYBOARD, InputConstants.KEY_Q, CATEGORY));
+	/** CS2 buy menu (B, like CS2). */
 	public static final KeyMapping BUY = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping("key.countercraft.buy", InputConstants.Type.KEYBOARD, InputConstants.KEY_B, CATEGORY));
 	/** CS2's sellbackall (Delete, CS2's default bind): refund everything bought this round (Refunds). */

@@ -16,6 +16,7 @@
 		"EntityLightMixin",
 		"EntityRenderDispatcherAccessor",
 		"EntityRendererInvoker",
+		"EntityStuckAccessor",
 		"FeatureFrameMixin",
 		"FirstPersonHandsMixin",
 		"GameRendererMixin",

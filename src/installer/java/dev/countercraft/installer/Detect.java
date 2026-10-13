@@ -146,6 +146,12 @@ final class Detect {
 		}).orElse(false));
 	}
 
+	/** Prism Launcher's usual folder (%APPDATA%\PrismLauncher), if it's there; null otherwise. */
+	static Path defaultPrism() {
+		Path p = Path.of(env("APPDATA", System.getProperty("user.home")), "PrismLauncher");
+		return Files.isDirectory(p.resolve("instances")) ? p : null;
+	}
+
 	/** A Prism / MultiMC root from what the user picked: the root, its instances folder, or an instance. */
 	static Path launcherRoot(Path picked) {
 		if (picked == null) {

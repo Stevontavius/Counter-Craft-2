@@ -8,7 +8,7 @@
 
 A free, fan-made Fabric mod for Minecraft: Java Edition.
 
-[![Release](https://img.shields.io/badge/release-BETA%201.0-dcb45a?style=flat-square)](../../releases)
+[![Release](https://img.shields.io/badge/release-BETA%201.1-dcb45a?style=flat-square)](../../releases)
 [![Minecraft](https://img.shields.io/badge/Minecraft-26.3-62b47a?style=flat-square)](https://www.minecraft.net/)
 [![Fabric](https://img.shields.io/badge/Fabric%20Loader-0.19.5-dbd0b4?style=flat-square)](https://fabricmc.net/)
 [![Java](https://img.shields.io/badge/Java-25-e76f00?style=flat-square)](https://adoptium.net/)
@@ -88,8 +88,8 @@ sell it.
 
 ## Installation
 
-1. Download **`Counter-Craft-2-Installer-BETA-1.0.zip`** from [Releases](../../releases) and unzip it.
-2. Run **`Run Counter-Craft 2 Installer.bat`** (or double-click `Counter-Craft-2-Installer-BETA-1.0.jar`).
+1. Download **`Counter-Craft-2-Installer-BETA-1.1.zip`** from [Releases](../../releases) and unzip it.
+2. Run **`Run Counter-Craft 2 Installer.bat`** (or double-click `Counter-Craft-2-Installer-BETA-1.1.jar`).
 3. Read the notices and licenses, then go through the steps:
 
    | Step | What happens |
@@ -103,19 +103,29 @@ sell it.
 
 ## Updating
 
-Run the installer again and choose **Update Resource Pack**. The asset pack is rebuilt only if the new release changed it,
-and only files that differ are copied into your install; worlds and settings stay as they are.
+Open the installer. From BETA 1.1 on it tells you when a newer release is out and can update itself (**Update
+Installer**: downloaded from this repository's releases and checked against GitHub's checksum before it's used).
+
+Its Welcome page lists the Counter-Craft 2 installs on your PC and their release. **Update** brings one up to date: when
+the new release didn't change the asset pack, only the mod, Fabric API, the loader and the weapon table are replaced, in a
+few seconds. When it did, the pack is rebuilt (only then), and only files that differ are copied into your install.
+Worlds and settings stay as they are.
 
 ## Playing on a server
 
 A server needs:
 
-1. **`Counter-Craft-2-Server-BETA-1.0.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
+1. **`Counter-Craft-2-Server-BETA-1.1.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
    (Minecraft 26.3, Fabric Loader 0.19.5).
 2. **The weapon table**: copy `config/countercraft/weapons.json` from a Counter-Craft 2 install into the server's
    `config/countercraft/` folder.
 
-Each player uses the asset pack built from their own copy of Counter-Strike 2.
+Each player uses the asset pack built from their own copy of Counter-Strike 2. Players need the same Counter-Craft 2
+version as the server: anyone else is told which version the server runs when they try to join.
+
+On a server, a player who reaches 5 team kills or 500 team damage (CS2 health points) is banned from it permanently, with
+warnings on the way. Operators and the host of an open-to-LAN world are exempt. Change or turn off the limits with
+`/mp_teamkill_ban <n>` and `/mp_teamdamage_ban <n>` (0 turns one off).
 
 ## FAQ
 

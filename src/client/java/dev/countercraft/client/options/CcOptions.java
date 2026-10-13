@@ -114,6 +114,7 @@ public final class CcOptions {
 	private static AntiAliasing antiAliasing = AntiAliasing.OFF;
 	private static TextureQuality textureQuality = TextureQuality.HIGH;
 	private static Paperdoll paperdoll = Paperdoll.DISABLED;
+	private static boolean hotbarRarity;
 
 	private CcOptions() {
 	}
@@ -136,6 +137,7 @@ public final class CcOptions {
 				challengeMvp = !j.has("challenge_mvp") || j.get("challenge_mvp").getAsBoolean();
 				killFeed = !j.has("kill_feed") || j.get("kill_feed").getAsBoolean();
 				compass = !j.has("compass") || j.get("compass").getAsBoolean();
+				hotbarRarity = j.has("hotbar_rarity") && j.get("hotbar_rarity").getAsBoolean();
 				gpuAgents = !j.has("gpu_agents") || j.get("gpu_agents").getAsBoolean();
 				firstPersonLegs = !j.has("first_person_legs") || j.get("first_person_legs").getAsBoolean();
 				viewmodelShaders = !j.has("viewmodel_shaders") || j.get("viewmodel_shaders").getAsBoolean();
@@ -175,6 +177,7 @@ public final class CcOptions {
 			j.addProperty("challenge_mvp", challengeMvp);
 			j.addProperty("kill_feed", killFeed);
 			j.addProperty("compass", compass);
+			j.addProperty("hotbar_rarity", hotbarRarity);
 			j.addProperty("gpu_agents", gpuAgents);
 			j.addProperty("first_person_legs", firstPersonLegs);
 			j.addProperty("viewmodel_shaders", viewmodelShaders);
@@ -252,6 +255,17 @@ public final class CcOptions {
 	public static void setCompass(boolean on) {
 		load();
 		compass = on;
+	}
+
+	/** The CS hotbar underlines each weapon's icon in its finish's rarity colour (off by default, as CS2). */
+	public static boolean hotbarRarity() {
+		load();
+		return hotbarRarity;
+	}
+
+	public static void setHotbarRarity(boolean on) {
+		load();
+		hotbarRarity = on;
 	}
 
 	public static Paperdoll paperdoll() {

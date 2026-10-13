@@ -29,6 +29,8 @@ import net.minecraft.world.level.storage.LevelResource;
  * <li>{@code mp_startmoney} / {@code mp_maxmoney}: CS2's economy (800 / 16000), survival and adventure only; creative
  * buys for free.</li>
  * <li>{@code sv_maxvelocity}: the speed cap of players and grenades (units/s, CS2 default 3500, up to 9999).</li>
+ * <li>{@code mp_teamkill_ban} / {@code mp_teamdamage_ban}: Counter-Craft's permanent server ban after 5 team kills / 500
+ * team damage (0: off; {@link dev.countercraft.team.FriendlyFire}).</li>
  * </ul>
  * Every cvar also takes {@code reset} (back to its CS2 default).
  */
@@ -47,6 +49,8 @@ public final class ServerCvars {
 		add("mp_maxmoney", 16000, 0, 65535);
 		add("sv_sellback_enabled", 1, 0, 1); // CS2's refunds (casual / competitive: 1)
 		add("sv_maxvelocity", 3500, 0, 9999);
+		add("mp_teamkill_ban", 5, 0, 1000); // Counter-Craft's: team kills that ban a player from a server for good (0: off)
+		add("mp_teamdamage_ban", 500, 0, 100000); // team damage (CS2 health) that does (0: off); see FriendlyFire
 	}
 
 	/** Mirrors of the values the hot paths read. */

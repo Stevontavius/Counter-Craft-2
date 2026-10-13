@@ -269,6 +269,9 @@ public final class Combat {
 		}
 		boolean victimPlayer = victim instanceof Player;
 		boolean killerPlayer = killer instanceof Player;
+		if (victimPlayer && killer instanceof net.minecraft.server.level.ServerPlayer tk && killer != victim) {
+			dev.countercraft.team.FriendlyFire.teamKill(tk);
+		}
 		if (victim instanceof net.minecraft.server.level.ServerPlayer vp) {
 			// CS2's death cam / panel and ragdoll (the weapon as the kill feed would name it)
 			Entity k = killer;

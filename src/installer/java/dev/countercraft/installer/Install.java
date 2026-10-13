@@ -45,7 +45,7 @@ import javax.imageio.ImageIO;
  * interrupted copy is redone (by size and date) the next time.
  */
 final class Install {
-	static final String RELEASE = "BETA 1.0";
+	static final String RELEASE = "BETA 1.1";
 	static final String PACK = "CounterCraft-CS2-Assets";
 	static final String MC = "26.3";
 	static final String LOADER = "0.19.5";
@@ -162,6 +162,142 @@ final class Install {
 		} catch (Exception e) {
 			return null;
 		}
+	}
+
+	// ---- what a release changes (for updates)
+
+	/** Steps a pack may leave out (by its options), so a pack without them isn't out of date. */
+	private static final List<String> OPTIONAL_STEPS = List.of("legacy", "skins", "gloves", "musickits", "csgo");
+	private static final java.util.regex.Pattern STEP = java.util.regex.Pattern.compile("^\\s*\"(\\w+)\":\\s*\\(\"[^\"]*\",\\s*(\\d+)",
+			java.util.regex.Pattern.MULTILINE);
+
+	/** This release's conversion version of each asset pack step: STEPS in the converter's build_pack.py (step id -> version). */
+	static Map<String, Integer> stepVersions(Path converter) throws IOException {
+		String py = Files.readString(converter.resolve("build_pack.py"));
+		int a = py.indexOf("STEPS = {");
+		int b = a < 0 ? -1 : py.indexOf("\n}", a);
+		Map<String, Integer> out = new LinkedHashMap<>();
+		if (b > a) {
+			java.util.regex.Matcher m = STEP.matcher(py.substring(a, b));
+			while (m.find()) {
+				out.put(m.group(1), Integer.parseInt(m.group(2)));
+			}
+		}
+		if (out.isEmpty()) {
+			throw new IOException("can't read the asset pack's steps from " + converter.resolve("build_pack.py"));
+		}
+		return out;
+	}
+
+	/**
+	 * Does this release change an installed asset pack? Empty: no, it's current (only the mod and its loader need updating);
+	 * otherwise why it has to be built again: a step's conversion version changed, or the pack has no manifest to tell.
+	 */
+	static String packChange(Path gameDir, Map<String, Integer> steps) {
+		Map<String, Object> m = manifest(gameDir.resolve("resourcepacks").resolve(PACK));
+		if (m == null) {
+			return "its asset pack was built before updates existed (it has no manifest)";
+		}
+		Map<?, ?> have = m.get("steps") instanceof Map<?, ?> s ? s : Map.of();
+		List<String> changed = new ArrayList<>();
+		for (Map.Entry<String, Integer> e : steps.entrySet()) {
+			if (have.get(e.getKey()) instanceof Map<?, ?> h) {
+				if (!(h.get("version") instanceof Double v) || v.intValue() != e.getValue()) {
+					changed.add(e.getKey());
+				}
+			} else if (!OPTIONAL_STEPS.contains(e.getKey())) {
+				changed.add(e.getKey()); // a step this release added, which every pack has
+			}
+		}
+		return changed.isEmpty() ? "" : "this release changed its asset pack (" + String.join(", ", changed) + ")";
+	}
+
+	/** The release an install was made or last updated with (its record), or null. */
+	static String releaseOf(Path gameDir) {
+		try {
+			return (String) Json.object(Files.readString(gameDir.resolve(RECORD))).get("release");
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	/**
+	 * Bring an install to this release when its asset pack is already current ({@link #packChange} empty): the bundled mod
+	 * and Fabric API into mods/, the launcher's Minecraft and Fabric Loader versions, the weapon table from its pack, and
+	 * its record. The pack, worlds and settings aren't touched.
+	 */
+	static void modUpdate(Path dir, Consumer<String> log) throws IOException {
+		Path record = dir.resolve(RECORD);
+		Map<String, Object> r = Json.object(Files.readString(record));
+		List<String> jars = mods(dir.resolve("mods"), record, log);
+		Object launcher = r.get("launcher");
+		if ("Minecraft Launcher".equals(launcher)) {
+			officialVersion(dir, log);
+		} else if (Files.isRegularFile(dir.getParent().resolve("mmc-pack.json"))) {
+			instanceVersion(dir.getParent().resolve("mmc-pack.json"), log);
+		}
+		Path table = dir.resolve("config/countercraft/weapons.json");
+		Files.createDirectories(table.getParent());
+		copy(dir.resolve("resourcepacks").resolve(PACK).resolve(WEAPONS), table);
+		log.accept("  config/countercraft/weapons.json: the weapon table, from the installed pack");
+		r.put("release", RELEASE);
+		r.put("updated", Instant.now().toString());
+		r.put("mods", jars);
+		Files.writeString(record, Json.write(r));
+	}
+
+	/** The Minecraft Launcher: this release's Fabric version file, and the install's profiles set to it. */
+	private static void officialVersion(Path game, Consumer<String> log) throws IOException {
+		String id = "fabric-loader-" + LOADER + "-" + MC;
+		Path vdir = Detect.dotMinecraft().resolve("versions").resolve(id);
+		Files.createDirectories(vdir);
+		Files.writeString(vdir.resolve(id + ".json"), Json.write(fabricVersion(id)));
+		if (!Files.exists(vdir.resolve(id + ".jar"))) {
+			try (ZipOutputStream z = new ZipOutputStream(Files.newOutputStream(vdir.resolve(id + ".jar")))) {
+				z.putNextEntry(new ZipEntry("META-INF/MANIFEST.MF"));
+				z.write("Manifest-Version: 1.0\r\n".getBytes(StandardCharsets.US_ASCII));
+			}
+		}
+		for (Path f : Detect.launcherProfiles()) {
+			Map<String, Object> root = Json.object(Files.readString(f));
+			boolean changed = false;
+			if (root.get("profiles") instanceof Map<?, ?> all) {
+				for (Object p : all.values()) {
+					if (p instanceof Map<?, ?> m && game.toString().equals(m.get("gameDir")) && !id.equals(m.get("lastVersionId"))) {
+						@SuppressWarnings("unchecked")
+						Map<String, Object> mm = (Map<String, Object>) m;
+						mm.put("lastVersionId", id);
+						changed = true;
+					}
+				}
+			}
+			if (changed) {
+				Files.copy(f, f.resolveSibling(f.getFileName() + ".cc2-backup"), StandardCopyOption.REPLACE_EXISTING);
+				Files.writeString(f, Json.write(root));
+			}
+		}
+		log.accept("  versions/" + id + " (Fabric Loader " + LOADER + " for Minecraft " + MC + ")");
+	}
+
+	/** A Prism Launcher / MultiMC instance: this release's Minecraft and Fabric Loader versions in its mmc-pack.json. */
+	private static void instanceVersion(Path mmcPack, Consumer<String> log) throws IOException {
+		Map<String, Object> pack = Json.object(Files.readString(mmcPack));
+		if (pack.get("components") instanceof List<?> comps) {
+			for (Object o : comps) {
+				if (o instanceof Map<?, ?> c) {
+					@SuppressWarnings("unchecked")
+					Map<String, Object> cm = (Map<String, Object>) c;
+					switch (String.valueOf(cm.get("uid"))) {
+						case "net.minecraft", "net.fabricmc.intermediary" -> cm.put("version", MC);
+						case "net.fabricmc.fabric-loader" -> cm.put("version", LOADER);
+						default -> {
+						}
+					}
+				}
+			}
+		}
+		Files.writeString(mmcPack, Json.write(pack));
+		log.accept("  mmc-pack.json: Minecraft " + MC + ", Fabric Loader " + LOADER);
 	}
 
 	// ---- finding Counter-Craft 2 installs (for updates)

@@ -61,8 +61,9 @@ public class GunItem extends Item implements CsWeapon {
 		String gun = "";
 		int burstLeft;
 		double burstNext;
-		long lastTrigger = Long.MIN_VALUE / 2;
-		long triggerStart;
+		/** R8: trigger packets since the gun was ready (counted the same way on the client), and the tick of the first. */
+		int prepPulls;
+		long prepStart;
 		/** Bullets fired, for CS2's every-Nth-bullet tracers. */
 		int tracerCount;
 		/** Dual Berettas: the next shot is the left gun's (they alternate, right first). */
@@ -155,15 +156,21 @@ public class GunItem extends Item implements CsWeapon {
 			return;
 		}
 		if (spec.revolver() && !altFire) {
-			// hold to pull the hammer: the pull starts once the gun is ready, then it fires (and repeats while held)
-			boolean ready = now + 1e-6 >= stack.getOrDefault(ModComponents.NEXT_SHOT, 0.0);
-			if (now - sh.lastTrigger > 2) {
-				sh.triggerStart = now;
-			} else if (!ready) {
-				sh.triggerStart = now + 1;
+			// hold to pull the hammer: the pull starts once the gun is ready, then it fires (and repeats while held). Counted
+			// in the client's trigger packets (one a tick while held, the first marked fresh), exactly as the client counts
+			// them, so the server fires on the packet the client played the shot on, however the network bunches them; a
+			// quick re-press always starts a new pull. The server-tick floor only stops a client sending packets too fast.
+			boolean ready = now + 1e-6 >= stack.getOrDefault(ModComponents.NEXT_SHOT, 0.0) && !stack.has(ModComponents.RELOAD_END);
+			if (pull.fresh() || !ready) {
+				sh.prepPulls = 0;
 			}
-			sh.lastTrigger = now;
-			if (now - sh.triggerStart < REVOLVER_PREP_TICKS) {
+			if (!ready) {
+				return;
+			}
+			if (sh.prepPulls++ == 0) {
+				sh.prepStart = now;
+			}
+			if (sh.prepPulls <= REVOLVER_PREP_TICKS || now - sh.prepStart < REVOLVER_PREP_TICKS - 2) {
 				return;
 			}
 		}
@@ -252,10 +259,19 @@ public class GunItem extends Item implements CsWeapon {
 		}
 		dev.countercraft.team.Refunds.used(stack); // fired: no refund
 		boolean unsilenced = "detachable".equals(spec.silencer()) && stack.getOrDefault(ModComponents.SILENCER_OFF, false);
-		// the shooter plays their own shot locally (no network delay); everyone else hears it from here
+		// the shooter plays their own shot locally (no network delay, centred); everyone else hears it from here, fading
+		// out over GUNFIRE_RANGE blocks (a weapon sound's volume above 1 is its reach: 16 blocks per 1.0), each player in
+		// their own Weapon Sound Style (their client picks the sound)
 		level.playSound(player, player.getX(), player.getEyeY(), player.getZ(), unsilenced && fireUnsilenced != null ? fireUnsilenced : fireSound,
-				SoundSource.PLAYERS, 2.0f, 1.0f);
+				SoundSource.PLAYERS, (silenced ? SILENCED_RANGE : GUNFIRE_RANGE) / 16f, 1.0f);
 	}
+
+	/**
+	 * How far other players hear a shot, in blocks (it fades out linearly to there). Counter-Craft's choice: gunfire carries
+	 * across a fight as it does in CS2, not Minecraft's usual 16 blocks; a silenced gun much less far.
+	 */
+	public static final float GUNFIRE_RANGE = 96f;
+	public static final float SILENCED_RANGE = 24f;
 
 	/** Muzzle flash and tracers: to everyone who can see the shooter, and the shooter (their tracers). */
 	private static void shotFx(ServerPlayer shooter, ShotFxPayload fx) {

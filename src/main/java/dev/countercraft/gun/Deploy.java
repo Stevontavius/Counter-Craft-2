@@ -41,7 +41,12 @@ public final class Deploy {
 
 	/** True once the held weapon's draw has finished. */
 	public static boolean ready(ServerPlayer player) {
-		return player.level().getGameTime() >= update(player).readyAt();
+		return ready(player, 0);
+	}
+
+	/** As {@link #ready(ServerPlayer)}, up to {@code leewayTicks} early (a client action timed by its own clock). */
+	public static boolean ready(ServerPlayer player, int leewayTicks) {
+		return player.level().getGameTime() + leewayTicks >= update(player).readyAt();
 	}
 
 	/** Not usable for {@code ticks} more (a grenade being thrown, then the next one drawn). */

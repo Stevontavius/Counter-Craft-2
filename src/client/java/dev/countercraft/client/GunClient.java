@@ -85,9 +85,8 @@ public final class GunClient {
 	private static double drawEnd;
 	private static int predictedAmmo;
 	private static int lastSeenAmmo;
-	private static long triggerStart;
-	private static long lastTrigger = Long.MIN_VALUE / 2;
-	private static boolean prepPlayed;
+	/** R8: trigger packets sent since the gun was ready (the server counts the same packets: GunItem.trigger). */
+	private static int prepPulls;
 	private static int burstLeft;
 	private static double burstNext;
 	private static boolean leftNext;
@@ -137,12 +136,13 @@ public final class GunClient {
 
 	/** The gun in use: only from the CS slots in CS mode (one sitting in the Minecraft hotbar is just an item). */
 	static GunSpec held(LocalPlayer player) {
-		return player != null && dev.countercraft.team.CsInventory.active(player) && player.getMainHandItem().getItem() instanceof GunItem gun ? gun.spec() : null;
+		return heldWeapon(player) instanceof GunItem gun ? gun.spec() : null;
 	}
 
-	/** The CS weapon in use (gun, knife, grenade, Zeus): only from the CS slots in CS mode. */
+	/** The CS weapon in use (gun, knife, grenade, Zeus): only from the CS slots in CS mode, and never while spectating. */
 	static CsWeapon heldWeapon(LocalPlayer player) {
-		return player != null && dev.countercraft.team.CsInventory.active(player) && player.getMainHandItem().getItem() instanceof CsWeapon w ? w : null;
+		return player != null && !player.isSpectator() && dev.countercraft.team.CsInventory.active(player)
+				&& player.getMainHandItem().getItem() instanceof CsWeapon w ? w : null;
 	}
 
 	/** Current scope level of the held gun (0 = none). */
@@ -259,11 +259,10 @@ public final class GunClient {
 			burstLeft = 0;
 			primed = false;
 			ragLit = false;
-			prepPlayed = false;
+			prepPulls = 0;
 			redraw = false;
 			released = false;
 			throwEnd = 0;
-			lastTrigger = Long.MIN_VALUE / 2;
 		}
 		if (weapon instanceof KnifeItem) {
 			knifeTick(mc, fire, alt);
@@ -338,41 +337,37 @@ public final class GunClient {
 		}
 		boolean send = spec.automatic() || spec.revolver() ? fire : firePressed;
 		if (!send) {
-			if (!fire) {
-				lastTrigger = Long.MIN_VALUE / 2;
-				prepPlayed = false;
-			}
+			prepPulls = 0;
 			return;
 		}
 		ClientPlayNetworking.send(new FirePayload(false, firePressed, motion(player)));
 		if (spec.revolver()) {
-			// same rule as the server: the hammer pull starts once the gun is ready, then it fires
-			boolean ready = tick + 1e-6 >= nextShot && reloadEnd == null && predictedAmmo > 0;
-			if (tick - lastTrigger > 2) {
-				triggerStart = tick;
-				prepPlayed = false;
-			} else if (!ready) {
-				triggerStart = tick + 1;
-				prepPlayed = false;
+			// the server's count (GunItem.trigger): the hammer pull starts once the gun is ready, a fresh press starts over,
+			// and the shot goes with the packet after REVOLVER_PREP_TICKS ready ones
+			boolean ready = tick + 1e-6 >= nextShot && reloadEnd == null;
+			if (firePressed || !ready) {
+				prepPulls = 0;
 			}
-			lastTrigger = tick;
-			if (ready && !prepPlayed && animator != null) {
+			if (!ready) {
+				return;
+			}
+			if (prepPulls++ == 0 && predictedAmmo > 0 && animator != null) {
 				animator.play("prepare", 1f);
-				prepPlayed = true;
 			}
-			if (tick - triggerStart < GunItem.REVOLVER_PREP_TICKS) {
+			if (prepPulls <= GunItem.REVOLVER_PREP_TICKS) {
 				return;
 			}
 		}
-		if (predict(mc, spec, stack, false, !firePressed)) {
-			prepPlayed = false;
-		}
+		predict(mc, spec, stack, false, !firePressed);
 	}
 
 	/** Knife: hold left to slash, right to stab; the animation picks hit/miss/backstab from what's in reach. */
 	private static void knifeTick(Minecraft mc, boolean fire, boolean alt) {
 		if (!fire && !alt) {
 			return;
+		}
+		if (tick + 1e-6 < nextShot) {
+			return; // between swings: nothing to send (the server only swings on the packet marked as a swing)
 		}
 		boolean stab = !fire;
 		boolean hit = false;
@@ -384,28 +379,28 @@ public final class GunClient {
 			double reach = player ? (stab ? KnifeItem.STAB_RANGE : KnifeItem.SLASH_RANGE) : (stab ? KnifeItem.STAB_RANGE_MOB : KnifeItem.SLASH_RANGE_MOB);
 			if (mc.player.getEyePosition().distanceTo(eh.getLocation()) <= reach) {
 				hit = true;
-				// the same test as the server: CS's IsBehindAndFacingTarget for players, the back hitbox zone for mobs
+				// the same test as the server: the backstab rule for players, the back hitbox zone for mobs
 				back = Ballistics.owner(eh.getEntity()) instanceof LivingEntity target
 						&& (player ? KnifeItem.backstab(mc.player, target) : KnifeItem.backZone(mc.player, target, eh.getLocation()));
 				backId = back ? Ballistics.owner(eh.getEntity()).getId() : -1;
 			}
 		}
-		// the server swings with this tick's packet: it carries what the animation shows (a backstab), so the damage
-		// matches it (the server's own test sees the target a moment later)
-		ClientPlayNetworking.send(new FirePayload(stab, false, motion(mc.player), backId));
-		if (tick + 1e-6 < nextShot || animator == null) {
-			return;
-		}
+		// the swing: its packet is marked (fresh) and carries what the animation shows (a backstab), so the server swings
+		// with it and the damage matches what you saw (the server's own test sees the target a moment later)
+		ClientPlayNetworking.send(new FirePayload(stab, true, motion(mc.player), backId));
+		boolean anim = animator != null;
 		String role;
 		if (stab) {
-			role = back && animator.has("stab_backstab") ? "stab_backstab" : (hit ? "stab_hit" : "stab");
+			role = back && anim && animator.has("stab_backstab") ? "stab_backstab" : (hit ? "stab_hit" : "stab");
 			nextShot = tick + (hit ? 1.1 : 1.0) * 20.0;
 		} else {
 			leftNext = !leftNext;
-			role = back && animator.has("backstab") ? "backstab" : (hit ? (leftNext ? "slash_hit2" : "slash_hit") : (leftNext ? "slash2" : "slash"));
+			role = back && anim && animator.has("backstab") ? "backstab" : (hit ? (leftNext ? "slash_hit2" : "slash_hit") : (leftNext ? "slash2" : "slash"));
 			nextShot = tick + (hit ? 0.5 : 0.4) * 20.0;
 		}
-		animator.play(animator.has(role) ? role : (stab ? "stab" : "slash"), 1f);
+		if (anim) {
+			animator.play(animator.has(role) ? role : (stab ? "stab" : "slash"), 1f);
+		}
 		dev.countercraft.client.agent.AgentClient.local("action_attack", KnifeItem.attackType(stab, hit, back), (float) ((nextShot - tick) / 20.0));
 	}
 
@@ -801,10 +796,16 @@ public final class GunClient {
 		return out;
 	}
 
+	/**
+	 * Your own weapon's sounds (gunfire, and the viewmodel's reload / draw sounds): played at the listener itself, not at a
+	 * point in the world, so they stay centred between both ears however you move, turn or fly. Everyone else hears your
+	 * shots from where you are (the server's sound, positional).
+	 */
 	private static void playLocal(Minecraft mc, Identifier sound, float volume) {
 		if (mc.level != null && mc.player != null) {
-			mc.level.playLocalSound(mc.player.getX(), mc.player.getEyeY(), mc.player.getZ(),
-					SoundEvent.createVariableRangeEvent(sound), SoundSource.PLAYERS, volume, 1f, false);
+			mc.getSoundManager().play(new net.minecraft.client.resources.sounds.SimpleSoundInstance(sound, SoundSource.PLAYERS, volume, 1f,
+					net.minecraft.util.RandomSource.create(), false, 0, net.minecraft.client.resources.sounds.SoundInstance.Attenuation.NONE, 0, 0, 0,
+					true));
 		}
 	}
 

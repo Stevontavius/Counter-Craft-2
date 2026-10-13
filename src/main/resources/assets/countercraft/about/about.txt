@@ -1,4 +1,4 @@
-# COUNTER-CRAFT 2 — BETA 1.0
+# COUNTER-CRAFT 2 — BETA 1.1
 A free, fan-made Minecraft mod that brings Counter-Strike 2's weapons, movement and style into survival Minecraft.
 Made by Steven. The mod's own code is released under the PolyForm Noncommercial License 1.0.0 (polyformproject.org/licenses/noncommercial/1.0.0): free for any noncommercial use, not for commercial use. It comes "as is", without warranty of any kind.
 
@@ -37,7 +37,7 @@ Counter-Craft 2 is not a Steam or Valve service, and linking it is not an agreem
 # WHAT IS READ FROM YOUR ACCOUNT
 Only public pages, with no login and no API key:
 - Your public Steam profile (steamcommunity.com/profiles/<id>): display name, avatar picture, Steam level, and CS2 hours when your profile lists them.
-- Your public CS2 inventory (steamcommunity.com/inventory/<id>/730/2): the names of the CS2 items you own. This is used to unlock the same skins, agents, knives, gloves and music kits in Counter-Craft 2, and for the Genuine Skins check mark.
+- Your public CS2 inventory (steamcommunity.com/inventory/<id>/730/2, and /730/16 for trade-protected items): the names of the CS2 items you own. This is used to unlock the same skins, agents, knives, gloves and music kits in Counter-Craft 2, and for the Genuine Skins check mark.
 - Your public match stats from Leetify (api-public.cs-prod.leetify.com): ranks, ratings, win rates and recent matches, for My CS2 Stats. This only works if Leetify has your profile.
 - Item prices from Skinport's public price list (api.skinport.com), to show what an inventory is worth. Nothing about you is sent to Skinport.
 If your profile or inventory is private, nothing is read, and the game tells you so.

@@ -1096,7 +1096,7 @@ def main():
 
     (assets / "sounds.json").write_text(json.dumps(sounds_json, indent=2))
     (pack / "pack.mcmeta").write_text(json.dumps({"pack": {
-        "description": "Counter-Craft 2 BETA 1.0: CS2 assets converted from your own install. Do not redistribute.",
+        "description": "Counter-Craft 2: CS2 assets converted from your own install. Do not redistribute.",
         "min_format": [97, 0], "max_format": [97, 1]}}, indent=2))
     log(f"pack ready: {pack}")
     if args.install:

@@ -51,6 +51,8 @@ public final class CsPlayerMovement {
 	private static double ladderRelease;
 	/** Long enough at 270 u/s to clear the ladder's block. */
 	private static final double LADDER_RELEASE_SECONDS = 0.25;
+	/** This tick's slow-down from a cobweb, berry bush or powder snow (x, y, z factors), or null. */
+	private static Vec3 stuck;
 
 	private CsPlayerMovement() {
 	}
@@ -121,6 +123,15 @@ public final class CsPlayerMovement {
 		Vec3 d = p.getDeltaMovement();
 		if (lastSetDelta == null || d.distanceToSqr(lastSetDelta) > 1e-4) {
 			vel = d.scale(20 * CsMove.UNITS_PER_BLOCK); // someone else moved us (knockback, vanilla movement)
+		}
+		// a cobweb (berry bush, powder snow) caught us last tick: Minecraft scales the next move by its factors and stops the
+		// player; CS movement moves several times a tick, so it takes the slow-down for the whole tick and starts from rest
+		var stuckIn = (dev.countercraft.client.mixin.EntityStuckAccessor) p;
+		Vec3 s = stuckIn.countercraft$stuck();
+		stuck = s.lengthSqr() > 1e-7 ? s : null;
+		if (stuck != null) {
+			stuckIn.countercraft$setStuck(Vec3.ZERO);
+			vel = Vec3.ZERO;
 		}
 		Input in = p.input.keyPresses;
 		boolean jumpDown = in.jump();
@@ -197,7 +208,8 @@ public final class CsPlayerMovement {
 			v = Vec3.ZERO; // hold still on the ladder
 		}
 		vel = v;
-		p.move(MoverType.SELF, v.scale(dt / CsMove.UNITS_PER_BLOCK));
+		Vec3 move = v.scale(dt / CsMove.UNITS_PER_BLOCK);
+		p.move(MoverType.SELF, stuck != null ? move.multiply(stuck) : move);
 		p.resetFallDistance();
 		wasOnGround = p.onGround();
 		return jumped;
@@ -333,6 +345,9 @@ public final class CsPlayerMovement {
 				vel = new Vec3(vel.x, vel.y, 0);
 			}
 			want = held;
+		}
+		if (stuck != null) {
+			want = want.multiply(stuck);
 		}
 		p.move(MoverType.SELF, want);
 		Vec3 got = p.position().subtract(from);

@@ -46,7 +46,7 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 
 /**
- * Counter-Craft 2's installer (BETA 1.0): builds the asset pack from the player's own Counter-Strike 2 install (and
+ * Counter-Craft 2's installer (BETA 1.1): builds the asset pack from the player's own Counter-Strike 2 install (and
  * CS:GO's, for its weapon sounds) with the converter (converter/build_pack.py), or updates one by its manifest, then
  * installs the mod and the pack into one launcher's Counter-Craft 2 profile or instance (Install) and checks the result.
  * Pages: Welcome, Notices (agreed to before going on), Counter-Strike, Destination, Review, Progress, Finish; in the look
@@ -97,7 +97,7 @@ public final class CcInstaller extends JComponent {
 	private static final Graphics2D MEASURE = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB).createGraphics();
 	// pages
 	private static final String[] PAGES = {"Welcome", "Notices", "Counter-Strike", "Destination", "Review", "Progress", "Finish"};
-	private static final String[] HELP = {"Counter-Craft 2 " + Install.RELEASE + ". Press Next to start, or Update Resource Pack to update an install.",
+	private static final String[] HELP = {"Counter-Craft 2 " + Install.RELEASE + ". Press Next to install, or update an install below.",
 			"Read the notices, tick the box, then press I Agree & Continue.", "Where your Counter-Strike games are, the weapon sounds, and the asset pack.",
 			"The one launcher Counter-Craft 2 goes into.", "Check the plan, then start it.",
 			"You can keep using your PC while it works. Games may stutter while the pack builds.", "How to start playing."};
@@ -225,6 +225,14 @@ public final class CcInstaller extends JComponent {
 	private int doneLauncher;
 	private boolean doneUpdate;
 	private volatile boolean existingAtStart;
+	// installer updates: a newer release with an installer (checked on GitHub in the background at start), its download
+	private Updates.Release newer;
+	private String selfUpdate;
+	// Counter-Craft 2 installs on this PC (Welcome) and their quick updates: game folder -> "Updating...", "OK", "PACK:why",
+	// "Failed: why"; an update asked for before the notices were agreed to
+	private List<Install.Found> onPc = List.of();
+	private final Map<Path, String> quick = new LinkedHashMap<>();
+	private Install.Found pendingQuick;
 	private volatile boolean cancelled;
 	private volatile Process proc;
 	private PrintWriter logFile;
@@ -239,6 +247,9 @@ public final class CcInstaller extends JComponent {
 		if (args.length == 2 && args[0].equals("--shot")) {
 			shots(Path.of(args[1]));
 			return;
+		}
+		if (args.length == 2 && args[0].equals("--replaced")) {
+			Updates.cleanUp(args[1]); // started by Update Installer: the old installer jar goes
 		}
 		SwingUtilities.invokeLater(() -> {
 			JFrame f = new JFrame("Counter-Craft 2 Installer " + Install.RELEASE);
@@ -359,6 +370,20 @@ public final class CcInstaller extends JComponent {
 		addMouseListener(m);
 		addMouseMotionListener(m);
 		addMouseWheelListener(m);
+		if (frame != null) {
+			Thread t = new Thread(() -> {
+				try {
+					Updates.Release r = Updates.check();
+					if (r != null) {
+						post(() -> newer = r);
+					}
+				} catch (Exception ignored) {
+					// offline, or GitHub didn't answer: no update offered
+				}
+			}, "CC2 installer update check");
+			t.setDaemon(true);
+			t.start();
+		}
 	}
 
 	/** The topmost thing at (x, y) from the last paint. */
@@ -525,8 +550,16 @@ public final class CcInstaller extends JComponent {
 				}
 			} else if (page == NOTICES) {
 				rx -= 210;
-				button(g, rx, by, 210, bh, "I AGREE & CONTINUE", GOOD, agreed, () -> go(SOURCE),
-						agreed ? "Go on to the installation." : "Tick \"I have read and understand these notices\" first.");
+				button(g, rx, by, 210, bh, "I AGREE & CONTINUE", GOOD, agreed, () -> {
+					if (pendingQuick != null) {
+						Install.Found f = pendingQuick;
+						pendingQuick = null;
+						go(WELCOME);
+						quickUpdate(f); // the update they pressed before agreeing
+					} else {
+						go(SOURCE);
+					}
+				}, agreed ? "Go on to the installation." : "Tick \"I have read and understand these notices\" first.");
 				rx -= 118;
 				button(g, rx, by, 110, bh, "←  BACK", SOFT, true, () -> go(WELCOME), "Back to Welcome.");
 			} else {
@@ -588,23 +621,225 @@ public final class CcInstaller extends JComponent {
 		y = found(g, y, "Minecraft Launcher", official != null, official != null ? "FOUND: " + official.toUpperCase(Locale.ROOT) : "NOT FOUND",
 				official != null ? GOOD : DIM, "Prism Launcher and MultiMC work too: you pick their folder in step 4.");
 		y += 8;
+		if (newer != null) {
+			y = installerUpdate(g, y);
+		}
 		y = section(g, "Already installed?", y);
-		String d = "Brings an existing Counter-Craft 2 install up to date. The asset pack is rebuilt only if this release changed it, only "
-				+ "files that differ are copied into the install, and its worlds and settings stay as they are.";
+		if (onPc.isEmpty()) {
+			y = line(g, "No Counter-Craft 2 install found in the Minecraft Launcher or Prism Launcher's usual folder. Installed somewhere else "
+					+ "with Prism Launcher or MultiMC? Find it to update it.", y, DIM);
+		}
+		for (Install.Found f : onPc) {
+			y = installRow(g, y, f);
+		}
+		button(g, PAD, y, 260, 30, "FIND PRISM / MULTIMC INSTALLS", SOFT, !running, () -> pick(prism, p -> {
+			prism = p;
+			dirty = true;
+		}), "Pick a Prism Launcher or MultiMC folder to look for Counter-Craft 2 instances in.");
+		y += 42;
+		String d = "Brings an install up to date when this release changed the asset pack too (an install above says so). The pack is "
+				+ "built again only if this release changed it, only files that differ are copied into the install, and its worlds and "
+				+ "settings stay as they are.";
 		int h = choiceH(d, BW - 230);
 		card(g, PAD, y, BW, h, HINT);
-		text(g, "Update Resource Pack", PAD + 16, y + 24, TEXT, STRONG);
+		text(g, "Update the asset pack too", PAD + 16, y + 24, TEXT, STRONG);
 		int dy = y + 44;
 		for (String l : wrap(d, BW - 230, BODY)) {
 			text(g, l, PAD + 16, dy, SOFT, BODY);
 			dy += LH;
 		}
-		button(g, PAD + BW - 16 - 200, y + (h - 32) / 2, 200, 32, "UPDATE RESOURCE PACK", HINT, true, () -> {
+		button(g, PAD + BW - 16 - 200, y + (h - 32) / 2, 200, 32, "UPDATE MOD & PACK", HINT, true, () -> {
 			mode = UPDATE;
 			updateFirst = true;
 			go(agreed ? SOURCE : NOTICES);
-		}, "Update the asset pack of a Counter-Craft 2 install made by this installer.");
+		}, "Update the mod and the asset pack of a Counter-Craft 2 install made by this installer.");
 		return y + h + 8;
+	}
+
+	/** A newer release's installer: what it is, and Update Installer (or its download page when it can't be checked). */
+	private int installerUpdate(Graphics2D g, int y) {
+		y = section(g, "Installer update", y);
+		boolean can = Updates.canUpdateItself() && newer.sha256() != null;
+		String d = "Counter-Craft 2 " + newer.name() + " is out; this installer is " + Install.RELEASE + ". " + (can
+				? "Update Installer downloads the new installer from GitHub, checks it against GitHub's checksum, puts it here in place of this "
+						+ "one and opens it. Then update your installs with it."
+				: "Download it from the releases page, then update your installs with it.");
+		int h = choiceH(d, BW - 230);
+		card(g, PAD, y, BW, h, ACCENT);
+		text(g, "Counter-Craft 2 " + newer.name(), PAD + 16, y + 24, TEXT, STRONG);
+		chip(g, "NEW", PAD + 16 + tw("Counter-Craft 2 " + newer.name(), STRONG) + 10, y + 11, ACCENT);
+		int dy = y + 44;
+		for (String l : wrap(d, BW - 230, BODY)) {
+			text(g, l, PAD + 16, dy, SOFT, BODY);
+			dy += LH;
+		}
+		int bx = PAD + BW - 16 - 200;
+		int by = y + (h - 32) / 2;
+		if (selfUpdate != null && !selfUpdate.startsWith("Failed")) {
+			text(g, selfUpdate, PAD + BW - 16 - tw(selfUpdate, STRONG), by + 21, ACCENT, STRONG);
+		} else if (can) {
+			button(g, bx, by, 200, 32, selfUpdate != null ? "TRY AGAIN" : "UPDATE INSTALLER", ACCENT, !running, this::updateInstaller,
+					"Download " + newer.zip() + (newer.size() > 0 ? " (" + Math.max(1, Math.round(newer.size() / 1e6)) + " MB)" : "") + " from GitHub.");
+		} else {
+			button(g, bx, by, 200, 32, "OPEN RELEASES PAGE", ACCENT, true, () -> browse(newer.page()), newer.page());
+		}
+		y += h + 8;
+		if (selfUpdate != null && selfUpdate.startsWith("Failed")) {
+			y = line(g, selfUpdate, y, BAD);
+		}
+		return y;
+	}
+
+	/** One Counter-Craft 2 install: its release, and UPDATE when it's older than this installer (or how its update went). */
+	private int installRow(Graphics2D g, int y, Install.Found f) {
+		Path dir = f.gameDir();
+		String rel = Install.releaseOf(dir);
+		String state = quick.get(dir);
+		boolean current = Install.RELEASE.equals(rel);
+		boolean pack = state != null && state.startsWith("PACK:");
+		int h = 58;
+		card(g, PAD, y, BW, h, current ? GOOD : WARN);
+		hit(PAD, y, BW, h, null, dir.toString());
+		text(g, f.name(), PAD + 16, y + 24, TEXT, STRONG);
+		chip(g, current ? Install.RELEASE + "  ·  UP TO DATE" : (rel == null ? "OLDER RELEASE" : rel) + "  →  " + Install.RELEASE,
+				PAD + 16 + tw(f.name(), STRONG) + 10, y + 11, current ? GOOD : WARN);
+		String sub;
+		int color;
+		if (state == null || current && "OK".equals(state)) {
+			sub = current && "OK".equals(state) ? "Updated to " + Install.RELEASE + " and checked: the mod, Fabric API and loader, and the weapon table. "
+					+ "The asset pack was already current." : tail(dir.toString(), BW - 280, SMALL);
+			color = state != null ? GOOD : DIM;
+		} else if (pack) {
+			sub = "Needs the asset pack updated too: " + state.substring(5) + ".";
+			color = WARN;
+		} else {
+			sub = state;
+			color = state.startsWith("Failed") ? BAD : ACCENT;
+		}
+		text(g, fit(sub, BW - 260, SMALL), PAD + 16, y + 44, color, SMALL);
+		boolean busy = "Updating...".equals(state);
+		if (pack) {
+			button(g, PAD + BW - 16 - 200, y + 13, 200, 32, "UPDATE MOD & PACK", HINT, !running, () -> fullUpdate(f),
+					"Update this install's asset pack too (built again only where this release changed it), then its mod.");
+		} else if (!current && !busy) {
+			button(g, PAD + BW - 16 - 200, y + 13, 200, 32, "UPDATE TO " + Install.RELEASE, ACCENT, !running, () -> quickUpdate(f),
+					"Update this install to " + Install.RELEASE + ". If its asset pack is already current, only the mod is replaced (a few seconds).");
+		}
+		return y + h + 8;
+	}
+
+	/**
+	 * Update an install in place when this release didn't change its asset pack: the mod, Fabric API and loader, the weapon
+	 * table, then the check. If the pack changed, the row says so and offers the full update.
+	 */
+	private void quickUpdate(Install.Found f) {
+		if (!agreed) {
+			pendingQuick = f;
+			status = "Read the notices and agree to them first.";
+			go(NOTICES);
+			return;
+		}
+		Path dir = f.gameDir();
+		if (repo == null) {
+			quick.put(dir, "Failed: the installer's converter files are missing");
+			return;
+		}
+		if (dir.getParent().equals(Detect.dotMinecraft()) && Detect.launcherRunning()) {
+			quick.put(dir, "Failed: close the Minecraft Launcher first (it rewrites its profiles when it closes)");
+			return;
+		}
+		quick.put(dir, "Updating...");
+		Thread t = new Thread(() -> {
+			String state;
+			try {
+				String change = Install.packChange(dir, Install.stepVersions(repo.resolve("converter")));
+				if (!change.isEmpty()) {
+					state = "PACK:" + change;
+				} else {
+					Install.modUpdate(dir, l -> { });
+					List<String> bad = new ArrayList<>(Install.verify(dir));
+					bad.addAll(dir.getParent().equals(Detect.dotMinecraft()) ? Install.verifyOfficial(dir) : Install.verifyInstance(dir));
+					state = bad.isEmpty() ? "OK" : "Failed: updated, but " + String.join("; ", bad);
+				}
+			} catch (Exception e) {
+				String m = String.valueOf(e.getMessage());
+				state = "Failed: " + m + (m.contains("another process") ? " (close Minecraft first, then try again)" : "");
+			}
+			String s = state;
+			post(() -> {
+				quick.put(dir, s);
+				dirty = true;
+			});
+		}, "CC2 quick update");
+		t.setDaemon(true);
+		t.start();
+	}
+
+	/** The full update (asset pack and mod) of this install: the Update mode with the install already picked. */
+	private void fullUpdate(Install.Found f) {
+		Path dir = f.gameDir();
+		mode = UPDATE;
+		existing = dir;
+		if (dir.getParent().equals(Detect.dotMinecraft())) {
+			launcher = OFFICIAL;
+		} else {
+			Path root = Detect.launcherRoot(dir);
+			boolean multi = "MultiMC".equals(launcherOf(dir));
+			launcher = multi ? MULTIMC : PRISM;
+			if (multi) {
+				multimc = root;
+			} else {
+				prism = root;
+			}
+		}
+		setMode(UPDATE);
+		go(agreed ? SOURCE : NOTICES);
+	}
+
+	private static String launcherOf(Path gameDir) {
+		try {
+			return (String) Json.object(Files.readString(gameDir.resolve(Install.RECORD))).get("launcher");
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	/** Update Installer: download, check and open the newer installer, then close this one. */
+	private void updateInstaller() {
+		Updates.Release r = newer;
+		selfUpdate = "Starting...";
+		Thread t = new Thread(() -> {
+			try {
+				long[] shown = {-1};
+				Path jar = Updates.download(r, n -> {
+					long pct = r.size() > 0 ? Math.min(99, n * 100 / r.size()) : n / 1_000_000;
+					if (pct != shown[0]) {
+						shown[0] = pct;
+						post(() -> selfUpdate = r.size() > 0 ? "Downloading " + pct + "%" : "Downloading " + pct + " MB");
+					}
+				});
+				post(() -> selfUpdate = "Opening the new installer...");
+				Updates.launch(jar);
+				post(() -> {
+					if (frame != null) {
+						frame.dispose();
+					}
+					System.exit(0);
+				});
+			} catch (Exception e) {
+				post(() -> selfUpdate = "Failed: " + e.getMessage());
+			}
+		}, "CC2 installer update");
+		t.setDaemon(true);
+		t.start();
+	}
+
+	private void browse(String url) {
+		try {
+			java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
+		} catch (Exception e) {
+			status = "Open " + url + " in your browser.";
+		}
 	}
 
 	private int found(Graphics2D g, int y, String name, boolean yes, String chip, int color, String note) {
@@ -1679,6 +1914,15 @@ public final class CcInstaller extends JComponent {
 			p.add(new Problem(DEST, "Pick " + (launcher == PRISM ? "Prism Launcher" : "MultiMC") + "'s folder, the one with the instances folder in it."));
 		}
 		installs = launcher == OFFICIAL ? Install.officialInstalls() : launcher > OFFICIAL ? Install.instanceInstalls(Detect.launcherRoot(launcher == PRISM ? prism : multimc)) : List.of();
+		List<Install.Found> all = new ArrayList<>(Install.officialInstalls());
+		for (Path root : new Path[] {Detect.defaultPrism(), Detect.launcherRoot(prism), Detect.launcherRoot(multimc)}) {
+			for (Install.Found f : Install.instanceInstalls(root)) {
+				if (all.stream().noneMatch(x -> x.gameDir().equals(f.gameDir()))) {
+					all.add(f);
+				}
+			}
+		}
+		onPc = all;
 		if (existing != null && installs.stream().noneMatch(f -> f.gameDir().equals(existing))) {
 			existing = null;
 		}

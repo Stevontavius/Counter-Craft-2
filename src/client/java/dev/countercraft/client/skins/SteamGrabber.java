@@ -34,7 +34,8 @@ import java.util.regex.Pattern;
  * <ul>
  * <li>Profile: steamcommunity.com/profiles/&lt;id64&gt;/?xml=1 or /id/&lt;vanity&gt;/?xml=1 (name, SteamID64, avatar).</li>
  * <li>Steam level: the profile page's friendPlayerLevelNum.</li>
- * <li>Inventory: steamcommunity.com/inventory/&lt;id64&gt;/730/2 (public inventories only; Steam rate-limits it).</li>
+ * <li>Inventory: steamcommunity.com/inventory/&lt;id64&gt;/730/2, and /730/16 for trade-protected items (public inventories
+ * only; Steam rate-limits it).</li>
  * <li>Value: Skinport's public price list (api.skinport.com/v1/items, one Brotli request for every CS2 item;
  * suggested price in USD), cached for 10 minutes. Skinport's prices, not the Steam Community Market's.</li>
  * </ul>
@@ -154,12 +155,29 @@ public final class SteamGrabber {
 		});
 	}
 
+	/** The inventory with its trade-protected items (context 16, see SteamInventory.CONTEXTS); those are optional. */
 	private static List<Item> inventory(String id64) throws Exception {
 		Map<String, Integer> counts = new LinkedHashMap<>();
 		Map<String, String> types = new HashMap<>();
+		for (String ctx : dev.countercraft.steam.SteamInventory.CONTEXTS) {
+			try {
+				inventory(id64, ctx, counts, types);
+			} catch (IllegalStateException e) {
+				if (ctx.equals(dev.countercraft.steam.SteamInventory.CONTEXTS[0])) {
+					throw e;
+				}
+				CounterCraft.LOG.info("[countercraft] trade-protected items not read: {}", e.getMessage());
+			}
+		}
+		List<Item> out = new ArrayList<>();
+		counts.forEach((n, c) -> out.add(new Item(n, types.getOrDefault(n, ""), c)));
+		return out;
+	}
+
+	private static void inventory(String id64, String ctx, Map<String, Integer> counts, Map<String, String> types) throws Exception {
 		String start = null;
 		for (int page = 0; page < 10; page++) {
-			String url = "https://steamcommunity.com/inventory/" + id64 + "/730/2?l=english&count=1000" + (start == null ? "" : "&start_assetid=" + start);
+			String url = "https://steamcommunity.com/inventory/" + id64 + "/730/" + ctx + "?l=english&count=1000" + (start == null ? "" : "&start_assetid=" + start);
 			HttpResponse<byte[]> r = get(url, null);
 			if (r.statusCode() == 403) {
 				throw new IllegalStateException("private");
@@ -195,9 +213,6 @@ public final class SteamGrabber {
 				break;
 			}
 		}
-		List<Item> out = new ArrayList<>();
-		counts.forEach((n, c) -> out.add(new Item(n, types.getOrDefault(n, ""), c)));
-		return out;
 	}
 
 	/** Skinport's suggested prices (USD) by market name, fetched once per 10 minutes. */

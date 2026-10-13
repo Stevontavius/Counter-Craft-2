@@ -57,8 +57,8 @@ import org.slf4j.LoggerFactory;
 
 public class CounterCraft implements ModInitializer {
 	public static final String MOD_ID = "countercraft";
-	/** The release name players see ("BETA 1.0"); the jar's version (fabric.mod.json) stays a plain number for Fabric and the build. */
-	public static final String RELEASE = "BETA 1.0";
+	/** The release name players see ("BETA 1.1"); the jar's version (fabric.mod.json) stays a plain number for Fabric and the build. */
+	public static final String RELEASE = "BETA 1.1";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_ID);
 
 	/** Damage types (data/countercraft/damage_type/*.json); all bypass vanilla armor and i-frames, like CS2. */
@@ -89,6 +89,14 @@ public class CounterCraft implements ModInitializer {
 
 	public static Identifier id(String path) {
 		return Identifier.fromNamespaceAndPath(MOD_ID, path);
+	}
+
+	/**
+	 * The player can act in the world: alive, not a spectator, not waiting for Another Chance. Every packet that fires,
+	 * stabs, throws, drops, picks up or buys checks it (a spectator sits where the teammate they watch is).
+	 */
+	public static boolean canAct(net.minecraft.server.level.ServerPlayer p) {
+		return p.isAlive() && !p.isSpectator() && !dev.countercraft.team.AnotherChance.waiting(p);
 	}
 
 	public static Holder<DamageType> bulletDamage(ServerLevel level) {
@@ -134,19 +142,20 @@ public class CounterCraft implements ModInitializer {
 		PayloadTypeRegistry.serverboundPlay().register(FirePayload.TYPE, FirePayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(FirePayload.TYPE, (payload, context) -> {
 			ItemStack stack = context.player().getMainHandItem();
-			if (!dev.countercraft.team.CsInventory.active(context.player())) {
+			if (!dev.countercraft.team.CsInventory.active(context.player()) || !canAct(context.player())) {
 				return; // CS weapons only work from the CS slots (one in the Minecraft hotbar is just an item)
 			}
 			if (stack.getItem() instanceof GunItem gun) {
 				gun.trigger(context.player(), stack, payload);
-			} else if (stack.getItem() instanceof KnifeItem knife && Deploy.ready(context.player())) {
-				knife.attack(context.player(), stack, payload.alt(), payload.backstab());
+			} else if (stack.getItem() instanceof KnifeItem knife && payload.fresh() && Deploy.ready(context.player(), KnifeItem.LEEWAY_TICKS)) {
+				knife.attack(context.player(), stack, payload.alt(), payload.backstab()); // fresh: the packet the client swung on
 			}
 		});
 		PayloadTypeRegistry.serverboundPlay().register(ThrowPayload.TYPE, ThrowPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(ThrowPayload.TYPE, (payload, context) -> {
 			ItemStack stack = context.player().getMainHandItem();
-			if (stack.getItem() instanceof GrenadeItem grenade && Deploy.ready(context.player()) && dev.countercraft.team.CsInventory.active(context.player())) {
+			if (stack.getItem() instanceof GrenadeItem grenade && Deploy.ready(context.player()) && dev.countercraft.team.CsInventory.active(context.player())
+					&& canAct(context.player())) {
 				grenade.throwGrenade(context.player(), stack, payload);
 			}
 		});
@@ -180,7 +189,8 @@ public class CounterCraft implements ModInitializer {
 		PayloadTypeRegistry.serverboundPlay().register(ReloadPayload.TYPE, ReloadPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(ReloadPayload.TYPE, (payload, context) -> {
 			ItemStack stack = context.player().getMainHandItem();
-			if (stack.getItem() instanceof GunItem gun && Deploy.ready(context.player()) && dev.countercraft.team.CsInventory.active(context.player())) {
+			if (stack.getItem() instanceof GunItem gun && Deploy.ready(context.player()) && dev.countercraft.team.CsInventory.active(context.player())
+					&& canAct(context.player())) {
 				gun.startReload(context.player().level(), context.player(), stack);
 			}
 		});
@@ -190,7 +200,8 @@ public class CounterCraft implements ModInitializer {
 		PayloadTypeRegistry.serverboundPlay().register(AltPayload.TYPE, AltPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(AltPayload.TYPE, (payload, context) -> {
 			ItemStack stack = context.player().getMainHandItem();
-			if (stack.getItem() instanceof GunItem gun && Deploy.ready(context.player()) && dev.countercraft.team.CsInventory.active(context.player())) {
+			if (stack.getItem() instanceof GunItem gun && Deploy.ready(context.player()) && dev.countercraft.team.CsInventory.active(context.player())
+					&& canAct(context.player())) {
 				gun.alt(context.player(), stack);
 			}
 		});
@@ -239,6 +250,8 @@ public class CounterCraft implements ModInitializer {
 			CsMove.setServer(handler.getPlayer().getUUID(), false);
 		});
 		Combat.init();
+		dev.countercraft.team.FriendlyFire.init();
+		VersionCheck.init();
 		dev.countercraft.team.Cosmetics.init();
 		PayloadTypeRegistry.serverboundPlay().register(dev.countercraft.net.MobHeadsPayload.TYPE, dev.countercraft.net.MobHeadsPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(dev.countercraft.net.MobHeadsPayload.TYPE, (payload, context) -> {
@@ -301,10 +314,18 @@ public class CounterCraft implements ModInitializer {
 				});
 		PayloadTypeRegistry.serverboundPlay().register(dev.countercraft.net.CsDropPayload.TYPE, dev.countercraft.net.CsDropPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(dev.countercraft.net.CsDropPayload.TYPE,
-				(payload, context) -> dev.countercraft.team.CsDrop.dropHeld(context.player()));
+				(payload, context) -> {
+					if (canAct(context.player())) {
+						dev.countercraft.team.CsDrop.dropHeld(context.player());
+					}
+				});
 		PayloadTypeRegistry.serverboundPlay().register(dev.countercraft.net.PickupPayload.TYPE, dev.countercraft.net.PickupPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(dev.countercraft.net.PickupPayload.TYPE,
-				(payload, context) -> dev.countercraft.team.CsDrop.usePickup(context.player(), payload.entity()));
+				(payload, context) -> {
+					if (canAct(context.player())) {
+						dev.countercraft.team.CsDrop.usePickup(context.player(), payload.entity());
+					}
+				});
 		PayloadTypeRegistry.serverboundPlay().register(dev.countercraft.net.CreativeCsSlotPayload.TYPE, dev.countercraft.net.CreativeCsSlotPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(dev.countercraft.net.CreativeCsSlotPayload.TYPE,
 				(payload, context) -> dev.countercraft.team.CsInventory.creativeSet(context.player(), payload.slot(), payload.stack()));
@@ -319,6 +340,9 @@ public class CounterCraft implements ModInitializer {
 		PayloadTypeRegistry.serverboundPlay().register(dev.countercraft.net.BuyPayload.TYPE, dev.countercraft.net.BuyPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(dev.countercraft.net.BuyPayload.TYPE,
 				(payload, context) -> {
+					if (!canAct(context.player())) {
+						return;
+					}
 					LOG.info("[countercraft] {} buys {}", context.player().getName().getString(), payload.item());
 					dev.countercraft.team.Buying.buy(context.player(), payload.item());
 				});

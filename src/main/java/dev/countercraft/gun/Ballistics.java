@@ -62,10 +62,12 @@ public final class Ballistics {
 	 * Counter-Craft's wallbangs (its own rules, not CS2's material table): glass shatters under any bullet and the bullet
 	 * carries on; rifles, snipers, machine guns and heavy pistols (Desert Eagle, R8) go through one wooden block (planks,
 	 * logs, wooden slabs / stairs / doors / trapdoors / fences / gates / shelves, bamboo) at {@link #WOOD_DAMAGE} of their
-	 * damage; only the AWP goes through iron bars ({@link #BARS_DAMAGE}). Anything else stops the bullet.
+	 * damage; only the AWP goes through iron bars ({@link #BARS_DAMAGE}). Every gun goes through leaves, up to
+	 * {@link #MAX_LEAVES} of them, at full damage (it counts as a wallbang). Anything else stops the bullet.
 	 */
 	public static final float WOOD_DAMAGE = 0.75f;
 	public static final float BARS_DAMAGE = 0.9f;
+	public static final int MAX_LEAVES = 24;
 
 	/** This gun can shoot through one wooden block. */
 	public static boolean woodbang(GunSpec spec) {
@@ -117,11 +119,12 @@ public final class Ballistics {
 		Vec3 to = from.add(dir.scale(Math.min(RANGE, spec.range() / UNITS_PER_BLOCK)));
 		boolean woodLeft = woodbang(spec);
 		boolean awp = spec.id().equals("awp");
+		int leavesLeft = MAX_LEAVES;
 		float through = 1f;          // damage left after what the bullet went through
 		boolean penetrated = false;
 		Vec3 cur = from;
 		EntityHit entity = null;
-		for (int guard = 0; guard < 16; guard++) {
+		for (int guard = 0; guard < MAX_LEAVES + 16; guard++) {
 			BlockHitResult block = level.clip(new ClipContext(cur, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shooter));
 			Vec3 end = block.getType() == HitResult.Type.MISS ? to : block.getLocation();
 			EntityHit e = traceEntity(level, shooter, cur, dir, cur.distanceTo(end));
@@ -146,6 +149,9 @@ public final class Ballistics {
 			} else if (awp && st.is(net.minecraft.world.level.block.Blocks.IRON_BARS)) {
 				next = exit(level, pos, end, dir);
 				through *= BARS_DAMAGE;
+			} else if (leavesLeft > 0 && st.is(net.minecraft.tags.BlockTags.LEAVES)) {
+				next = exit(level, pos, end, dir);
+				leavesLeft--;
 			}
 			impact(level, end);
 			if (next == null) {

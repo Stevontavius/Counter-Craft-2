@@ -8,7 +8,8 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 /**
  * Client to server: "the trigger is pulled this tick". {@code alt} = secondary fire (R8 Revolver fan fire);
- * {@code fresh} = the button went down this tick (a new click: no catching up on a shot that was due earlier);
+ * {@code fresh} = the button went down this tick (a new click: no catching up on a shot that was due earlier; for a
+ * knife, the packet the client swung on, the only kind the server swings on);
  * {@code motion} = the shooter's movement this tick, for CS2's movement / air inaccuracy. The server decides whether
  * a shot actually happens. {@code backstab}: a knife swing the client animated as a backstab, the entity it saw it on
  * (else -1): the server takes it when that's what it hits and you're behind it (see KnifeItem.attack).

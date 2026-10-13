@@ -180,6 +180,9 @@ public final class Guns {
 				pair(inacc, "jump"), pair(inacc, "fire"), f(rec, "stand"), f(rec, "crouch"), f(rec, "standFinal"), f(rec, "crouchFinal"),
 				i(rec, "transitionStart"), i(rec, "transitionEnd"), pair(o, "maxSpeed"), pair(inacc, "ladder"), pair(inacc, "land"),
 				inacc.has("jumpInitial") ? f(inacc, "jumpInitial") : 0f);
+		if ("deagle".equals(str(o, "id"))) {
+			acc = tunedDeagle(acc);
+		}
 		JsonObject z = o.getAsJsonObject("zoom");
 		JsonArray fov = z.getAsJsonArray("fov");
 		GunSpec.Zoom zoom = new GunSpec.Zoom(i(z, "levels"), new int[] {fov.get(0).getAsInt(), fov.get(1).getAsInt()},
@@ -205,6 +208,26 @@ public final class Guns {
 				f(o, "headshot"), cycle, b(o, "auto"), clip, i(o, "reserve"), f(o, "reloadTime"), b(o, "singleShellReload"),
 				f(o, "deploy"), pair(o, "maxSpeed"), f(o, "attackMoveSpeedFactor"), acc, zoom, str(o, "silencer"), burst,
 				b(o, "revolver"), b(o, "exhaustible"), sounds, ironsight, shells, recoil(o, clip, cycle[0]), shotFx(o));
+	}
+
+	/** Desert Eagle tuning on top of CS2's data: standing first-shot inaccuracy, firing penalty, recovery time. */
+	static final float DEAGLE_STAND = 2.0f;
+	static final float DEAGLE_FIRE = 1.35f;
+	static final float DEAGLE_RECOVERY = 1.25f;
+
+	/**
+	 * Play-testing found the Desert Eagle too accurate standing still and too forgiving to spam with Counter-Craft's
+	 * inaccuracy model, so it gets more standing inaccuracy, a bigger penalty per shot and a slower recovery.
+	 * ponytail: set by feel against CS2, not measured; measure the Deagle in CS2 and replace these multipliers.
+	 */
+	private static AccuracySpec tunedDeagle(AccuracySpec a) {
+		return new AccuracySpec(a.spread(), scale(a.standing(), DEAGLE_STAND), a.crouching(), a.moving(), a.jumping(), scale(a.firing(), DEAGLE_FIRE),
+				a.recoveryStand() * DEAGLE_RECOVERY, a.recoveryCrouch() * DEAGLE_RECOVERY, a.recoveryStandFinal() * DEAGLE_RECOVERY,
+				a.recoveryCrouchFinal() * DEAGLE_RECOVERY, a.transitionStart(), a.transitionEnd(), a.maxSpeed(), a.ladder(), a.landing(), a.jumpInitial());
+	}
+
+	private static float[] scale(float[] pair, float k) {
+		return new float[] {pair[0] * k, pair[1] * k};
 	}
 
 	private static RecoilPattern recoil(JsonObject o, int clip, float cycle) {

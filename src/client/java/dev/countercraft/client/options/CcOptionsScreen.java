@@ -308,6 +308,8 @@ public final class CcOptionsScreen extends Screen {
 		y = section("HUD", y);
 		y = toggle("Kill Feed / Death Notices", "CS2's death notices in the top right corner", CcOptions.killFeed(), CcOptions::setKillFeed, y);
 		y = toggle("Compass", "A heading strip at the top of the screen, under the player locator bar", CcOptions.compass(), CcOptions::setCompass, y);
+		y = toggle("CS Hotbar Rarity Colours", "Underlines each weapon in the CS hotbar in its finish's rarity colour (Mil-Spec blue, Covert red...)",
+				CcOptions.hotbarRarity(), CcOptions::setHotbarRarity, y);
 		label("Paperdoll", y + 6);
 		Button doll = Button.builder(Component.literal(CcOptions.paperdoll().label), b -> {
 			CcOptions.Paperdoll[] all = CcOptions.Paperdoll.values();

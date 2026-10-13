@@ -31,6 +31,7 @@ public class CounterCraftClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		GunKeys.init();
+		VersionClient.init();
 		RadioWheel.init();
 		MovementKeys.init();
 		MovementSettings.load();

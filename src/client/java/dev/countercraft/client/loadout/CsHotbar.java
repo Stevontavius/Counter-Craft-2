@@ -12,9 +12,9 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * Client side of CS mode ({@link CsInventory}): the toggle key, CS2's slot keys (1 primary, 2 pistol, 3 knife,
- * 4 cycles the grenades, 5 Zeus) and scrolling through the filled slots, and CS2's weapon list (panorama
- * hudweaponselection) drawn instead of the hotbar: one row per slot at the right edge, the selected weapon's icon bigger
- * and brighter with its name, in the team colour.
+ * 4 cycles the grenades, 5 Zeus), lastinv (Q: the weapon held before) and scrolling through the filled slots, and CS2's
+ * weapon list (panorama hudweaponselection) drawn instead of the hotbar: one row per slot at the right edge, the
+ * selected weapon's icon bigger and brighter with its name, in the team colour, easing between selections.
  */
 public final class CsHotbar {
 	/** CS2 rows: key 1-5 and the CS slots they hold. */
@@ -22,6 +22,9 @@ public final class CsHotbar {
 			{CsInventory.GRENADE0, CsInventory.GRENADE0 + 1, CsInventory.GRENADE0 + 2, CsInventory.GRENADE0 + 3}, {CsInventory.ZEUS}};
 	/** Scroll order through the CS slots. */
 	private static final int[] ORDER = {0, 1, 2, 3, 4, 5, 6, 7};
+	/** The CS slot selected now and the one before it (lastinv), or -1. */
+	private static int current = -1;
+	private static int previous = -1;
 
 	private CsHotbar() {
 	}
@@ -42,9 +45,26 @@ public final class CsHotbar {
 			}
 		}
 		if (!active()) {
+			while (GunKeys.LAST_WEAPON.consumeClick()) {
+				// CS hotbar only (here Q is Minecraft's Drop)
+			}
+			current = previous = -1;
 			return;
 		}
+		while (mc.options.keyDrop.consumeClick()) {
+			// the CS hotbar drops with G (CS2's drop); Minecraft's Drop key is lastinv's Q here
+		}
 		CsInventory.Data d = CsInventory.of(mc.player);
+		int sel = mc.player.getInventory().getSelectedSlot();
+		if (sel != current) {
+			previous = current;
+			current = sel;
+		}
+		while (GunKeys.LAST_WEAPON.consumeClick()) {
+			if (mc.gui.screen() == null && previous >= 0 && previous < ORDER.length && previous != sel && !d.get(previous).isEmpty()) {
+				mc.player.getInventory().setSelectedSlot(previous);
+			}
+		}
 		var keys = mc.options.keyHotbarSlots;
 		for (int i = 0; i < keys.length; i++) {
 			while (keys[i].consumeClick()) {
@@ -96,7 +116,11 @@ public final class CsHotbar {
 		return true;
 	}
 
-	/** CS2's weapon list in place of the hotbar. */
+	/**
+	 * CS2's weapon list in place of the hotbar. The selected row sits on a dark band fading in from the left with a team
+	 * coloured edge; icons grow and brighten into the selection and fade back out of it. With CC2 Options > HUD > CS Hotbar
+	 * Rarity Colours, each finish's rarity colour underlines its icon.
+	 */
 	public static void draw(GuiGraphicsExtractor g, DeltaTracker delta) {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null) {
@@ -106,47 +130,89 @@ public final class CsHotbar {
 		int h = g.guiHeight();
 		float k = CsUi.k(h);
 		int tc = Teams.CT.equals(Teams.of(mc.player)) ? CsUi.CT_COLOR : CsUi.T_COLOR;
+		boolean rarity = dev.countercraft.client.options.CcOptions.hotbarRarity();
 		CsInventory.Data d = CsInventory.of(mc.player);
 		int sel = mc.player.getInventory().getSelectedSlot();
 		float rowH = 64 * k;
 		float right = w - 24 * k;
 		float y = h * 0.62f - ROWS.length * rowH / 2;
 		for (int r = 0; r < ROWS.length; r++) {
-			float x = right - 24 * k;
-			boolean rowSelected = false;
 			boolean any = false;
+			float rowSel = 0f;
+			for (int s : ROWS[r]) {
+				if (!d.get(s).isEmpty()) {
+					any = true;
+					rowSel = Math.max(rowSel, CsUi.hover("cs_hotbar_row" + s, s == sel));
+				}
+			}
+			if (!any) {
+				for (int s : ROWS[r]) {
+					CsUi.hover("cs_hotbar_row" + s, false);
+				}
+				continue;
+			}
+			if (rowSel > 0f) {
+				band(g, right - 420 * k, y + 4 * k, right + 16 * k, y + rowH - 4 * k, rowSel, tc);
+			}
+			float x = right - 24 * k;
 			String selectedName = null;
 			for (int s : ROWS[r]) {
 				ItemStack st = d.get(s);
 				if (st.isEmpty()) {
 					continue;
 				}
-				any = true;
-				boolean selected = s == sel;
-				rowSelected |= selected;
+				float e = CsUi.hover("cs_hotbar_icon" + s, s == sel);
 				String item = itemName(st);
 				int[] sz = CsUi.iconSize(item);
 				if (sz == null) {
 					continue;
 				}
-				float ih = 61.5f * k * (selected ? 0.9f : 0.7f);
+				float ih = 61.5f * k * (0.7f + 0.2f * e);
 				float iw = ih * sz[0] / sz[1];
-				int col = selected ? tc : 0xCC000000 | (tc & 0xFFFFFF);
-				CsUi.image(g, CsUi.icon(item), x - iw, y + (rowH - ih) / 2, iw, ih, sz[0], sz[1], col);
-				if (selected) {
+				int alpha = Math.round(0xA0 + 0x5F * e);
+				int col = alpha << 24 | (tc & 0xFFFFFF);
+				dev.countercraft.client.skins.Skins.Rarity rr = rarity ? rarityOf(st) : null;
+				for (int n = 0; n < Math.max(1, st.getCount()); n++) {
+					// two flashbangs show as two icons, as in CS2
+					float iy = y + (rowH - ih) / 2;
+					CsUi.image(g, CsUi.icon(item), x - iw, iy, iw, ih, sz[0], sz[1], col);
+					if (rr != null) {
+						int under = Math.round(0x70 + 0x8F * e) << 24 | (rr.color() & 0xFFFFFF);
+						g.fill(Math.round(x - iw), Math.round(iy + ih + 1 * k), Math.round(x), Math.round(iy + ih + 1 * k + Math.max(1, 3 * k)), under);
+					}
+					x -= iw + 8 * k;
+				}
+				if (s == sel) {
 					selectedName = displayName(st);
 				}
-				x -= iw + 8 * k;
 			}
 			if (selectedName != null) {
 				// left of the whole row: in the grenade row the other grenades' icons sit left of the selected one
 				CsUi.text(g, selectedName, x - 4 * k, y + rowH / 2 - 7 * k, 16, h, tc, 1);
 			}
-			if (any) {
-				CsUi.text(g, Integer.toString(r + 1), right, y + 6 * k, 16, h, rowSelected ? tc : 0xA0A0A0A0, 1);
-				y += rowH;
-			}
+			int numAlpha = Math.round(0xA0 + 0x5F * rowSel);
+			CsUi.text(g, Integer.toString(r + 1), right, y + 6 * k, 16, h, numAlpha << 24 | (rowSel > 0.5f ? tc : 0xA0A0A0) & 0xFFFFFF, 1);
+			y += rowH;
 		}
+	}
+
+	/** The selected row's backdrop: dark, fading in from the left, with a team-coloured edge on the right; {@code a} 0..1. */
+	private static void band(GuiGraphicsExtractor g, float x0, float y0, float x1, float y1, float a, int tc) {
+		int steps = 24;
+		float sw = (x1 - x0) / steps;
+		for (int i = 0; i < steps; i++) {
+			float t = (i + 1) / (float) steps;
+			int alpha = Math.round(0x90 * a * t * t);
+			g.fill(Math.round(x0 + i * sw), Math.round(y0), Math.round(x0 + (i + 1) * sw), Math.round(y1), alpha << 24);
+		}
+		int edge = Math.max(1, Math.round((y1 - y0) / 20f));
+		g.fill(Math.round(x1 - edge * 2), Math.round(y0), Math.round(x1), Math.round(y1), Math.round(0xFF * a) << 24 | (tc & 0xFFFFFF));
+	}
+
+	/** The rarity of the finish on a weapon, or null (no finish, or none known). */
+	private static dev.countercraft.client.skins.Skins.Rarity rarityOf(ItemStack st) {
+		dev.countercraft.client.skins.Skins.Skin sk = dev.countercraft.client.skins.Skins.of(st);
+		return sk == null ? null : dev.countercraft.client.skins.Skins.rarity(sk.rarity());
 	}
 
 	/** The weapon's name with its finish, CS2 style ("AK-47 | Redline"). */

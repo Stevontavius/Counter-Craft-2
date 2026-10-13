@@ -11,8 +11,8 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * CS2's drop (G) and +use pick-up (E, the inventory key: looking at a dropped weapon within the use radius picks it up
- * instead of opening the inventory). Runs at the start of the client tick, before vanilla reads its keys.
+ * CS2's drop (G, in the CS hotbar) and +use pick-up (E, the inventory key: looking at a dropped weapon within the use
+ * radius picks it up instead of opening the inventory). Runs at the start of the client tick, before vanilla reads its keys.
  */
 public final class DropClient {
 	private DropClient() {
@@ -23,8 +23,8 @@ public final class DropClient {
 			return;
 		}
 		while (GunKeys.DROP.consumeClick()) {
-			if (mc.gui.screen() == null) {
-				ClientPlayNetworking.send(CsDropPayload.INSTANCE);
+			if (mc.gui.screen() == null && dev.countercraft.client.loadout.CsHotbar.active()) {
+				ClientPlayNetworking.send(CsDropPayload.INSTANCE); // CS hotbar only: Minecraft's Drop (Q) drops in the hotbar
 			}
 		}
 		if (mc.gui.screen() != null) {

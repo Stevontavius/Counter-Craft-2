@@ -55,6 +55,16 @@ public class KnifeItem extends Item implements CsWeapon {
 	static final double STAB_MISS = 1.0;
 	/** A slash within this long of the previous one is a follow-up (25 instead of 40). */
 	static final double FOLLOWUP_WINDOW = 0.6;
+	/**
+	 * The client times each swing by its own clock and marks the packet it swung on; the server takes it up to this many
+	 * ticks before its own cooldown ends (network jitter), keeping the cadence: an early swing counts from when it was due.
+	 */
+	public static final int LEEWAY_TICKS = 3;
+	/** Backstab: within this many degrees of straight behind the target, and facing it within {@link #FACING_ARC}. */
+	static final double BACK_ARC = 70;
+	static final double FACING_ARC = 60;
+	private static final double COS_BACK = Math.cos(Math.toRadians(BACK_ARC));
+	private static final double COS_FACING = Math.cos(Math.toRadians(FACING_ARC));
 
 	private static final Map<UUID, Long> LAST_SLASH = new ConcurrentHashMap<>();
 
@@ -85,15 +95,17 @@ public class KnifeItem extends Item implements CsWeapon {
 	}
 
 	/**
-	 * Server: one swing ({@code stab} = right click). {@code claimedBackstab}: the entity the client animated a
-	 * backstab on (-1: none); see {@link #behindLoosely}.
+	 * Server: one swing ({@code stab} = right click), on the packet the client swung on. {@code claimedBackstab}: the
+	 * entity the client animated a backstab on (-1: none); see {@link #behindLoosely}.
 	 */
 	public void attack(ServerPlayer player, ItemStack stack, boolean stab, int claimedBackstab) {
 		ServerLevel level = player.level();
 		long now = level.getGameTime();
-		if (now + 1e-6 < stack.getOrDefault(ModComponents.NEXT_SHOT, 0.0)) {
+		double due = stack.getOrDefault(ModComponents.NEXT_SHOT, 0.0);
+		if (now + LEEWAY_TICKS + 1e-6 < due) {
 			return;
 		}
+		double at = Math.max(now, due);
 		double csRange = stab ? STAB_RANGE : SLASH_RANGE;
 		double range = stab ? STAB_RANGE_MOB : SLASH_RANGE_MOB;
 		Vec3 eye = player.getEyePosition();
@@ -111,8 +123,10 @@ public class KnifeItem extends Item implements CsWeapon {
 		boolean backHit = false;
 		if (landed) {
 			Entity target = hit.getEntity();
+			// what the client animated counts when you're behind the target, players included: it saw the target a moment
+			// earlier than this, and a turn in between mustn't undo a backstab it already showed
 			boolean back = Ballistics.owner(target) instanceof LivingEntity victim
-					&& (victim instanceof Player ? backstab(player, victim) : backZone(player, victim, hit.getLocation())
+					&& ((victim instanceof Player ? backstab(player, victim) : backZone(player, victim, hit.getLocation()))
 							|| victim.getId() == claimedBackstab && behindLoosely(player, victim));
 			backHit = back;
 			if (back && Ballistics.owner(target) instanceof net.minecraft.world.entity.monster.Enemy) {
@@ -144,7 +158,7 @@ public class KnifeItem extends Item implements CsWeapon {
 			LAST_SLASH.put(player.getUUID(), now);
 		}
 		double cycle = stab ? (landed ? STAB_HIT : STAB_MISS) : (landed ? SLASH_HIT : SLASH_MISS);
-		stack.set(ModComponents.NEXT_SHOT, now + cycle * 20.0);
+		stack.set(ModComponents.NEXT_SHOT, at + cycle * 20.0);
 		dev.countercraft.AgentAnims.broadcast(player, "action_attack", attackType(stab, landed, landed && backHit), (float) cycle);
 	}
 
@@ -178,9 +192,9 @@ public class KnifeItem extends Item implements CsWeapon {
 	}
 
 	/**
-	 * CS's backstab test (CKnife::IsBehindAndFacingTarget), flat on the ground plane, between body centres: the target
-	 * looks away from the attacker (dot > 0.475), the attacker looks at the target (dot > 0.75), and the two view
-	 * directions aren't opposed (dot > -0.3). View = where the head looks (a mob's body yaw lags its head).
+	 * Counter-Craft's backstab rule for players (its own, not CS2's code), flat on the ground plane between body centres:
+	 * you stand within {@link #BACK_ARC} degrees of straight behind the target, judged by where its head faces (a player
+	 * turns their whole view), and you face the target within {@link #FACING_ARC} degrees.
 	 */
 	public static boolean backstab(LivingEntity attacker, LivingEntity target) {
 		Vec3 toTarget = new Vec3(target.getX() - attacker.getX(), 0, target.getZ() - attacker.getZ());
@@ -189,8 +203,8 @@ public class KnifeItem extends Item implements CsWeapon {
 		}
 		toTarget = toTarget.normalize();
 		Vec3 targetForward = Vec3.directionFromRotation(0f, target.getYHeadRot());
-		Vec3 ownerForward = Vec3.directionFromRotation(0f, attacker.getYHeadRot());
-		return toTarget.dot(targetForward) > 0.475 && toTarget.dot(ownerForward) > 0.75 && targetForward.dot(ownerForward) > -0.3;
+		Vec3 look = Vec3.directionFromRotation(0f, attacker.getYHeadRot());
+		return toTarget.dot(targetForward) > COS_BACK && toTarget.dot(look) > COS_FACING;
 	}
 
 	/**

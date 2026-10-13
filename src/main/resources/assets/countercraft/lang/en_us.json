@@ -96,7 +96,8 @@
   "key.countercraft.team": "Select team",
   "key.countercraft.sellbackall": "Refund All (buy menu)",
   "key.countercraft.cs_mode": "CS weapons / Minecraft hotbar",
-  "key.countercraft.drop": "Drop weapon",
+  "key.countercraft.drop": "Drop weapon (CS hotbar)",
+  "key.countercraft.lastinv": "Previous weapon (CS hotbar)",
   "entity.countercraft.dropped_weapon": "Dropped weapon",
   "death.attack.countercraft.taser": "%1$s was tased by %2$s",
   "death.attack.countercraft.taser.item": "%1$s was tased by %2$s using %3$s"

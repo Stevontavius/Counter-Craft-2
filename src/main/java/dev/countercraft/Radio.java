@@ -23,9 +23,12 @@ public final class Radio {
 	/** CS2 radio spam guard: at most this many calls in {@link #SPAM_WINDOW} ticks. */
 	private static final int SPAM_CALLS = 3;
 	private static final long SPAM_WINDOW = 60;
-	/** Ping tokens: CS2's player_ping_token_cooldown is 20 s; the number of tokens isn't exposed, 3 assumed. */
-	private static final int PING_TOKENS = 3;
-	private static final long PING_TOKEN_TICKS = 20 * 20;
+	/**
+	 * Ping spam guard: at most this many pings in {@link #PING_TOKEN_TICKS} (a double-tap urgent ping uses two). Looser than
+	 * CS2's 20 s tokens on purpose: survival pings mobs, loot and paths far more often than a CS round pings a site.
+	 */
+	private static final int PING_TOKENS = 6;
+	private static final long PING_TOKEN_TICKS = 5 * 20;
 
 	private static final Map<UUID, Deque<Long>> CALLS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Deque<Long>> PINGS = new ConcurrentHashMap<>();
