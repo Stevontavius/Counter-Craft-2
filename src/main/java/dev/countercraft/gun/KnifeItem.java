@@ -60,11 +60,21 @@ public class KnifeItem extends Item implements CsWeapon {
 	 * ticks before its own cooldown ends (network jitter), keeping the cadence: an early swing counts from when it was due.
 	 */
 	public static final int LEEWAY_TICKS = 3;
-	/** Backstab: within this many degrees of straight behind the target, and facing it within {@link #FACING_ARC}. */
-	static final double BACK_ARC = 70;
-	static final double FACING_ARC = 60;
+	/**
+	 * Backstab: anywhere behind the target, up to this many degrees from straight behind (90: level with their
+	 * shoulders), facing it within {@link #FACING_ARC}.
+	 */
+	static final double BACK_ARC = 90;
+	static final double FACING_ARC = 75;
+	/**
+	 * What the client saw its swing hit counts if the target is still within the reach plus this much (blocks) and along
+	 * the swing: a target that moved a little between the swing and the server hearing of it (ping) is still hit.
+	 */
+	static final double CLAIM_SLACK = 0.75;
 	private static final double COS_BACK = Math.cos(Math.toRadians(BACK_ARC));
 	private static final double COS_FACING = Math.cos(Math.toRadians(FACING_ARC));
+	private static final double COS_80 = Math.cos(Math.toRadians(80));
+	private static final double COS_100 = Math.cos(Math.toRadians(100));
 
 	private static final Map<UUID, Long> LAST_SLASH = new ConcurrentHashMap<>();
 
@@ -95,10 +105,12 @@ public class KnifeItem extends Item implements CsWeapon {
 	}
 
 	/**
-	 * Server: one swing ({@code stab} = right click), on the packet the client swung on. {@code claimedBackstab}: the
-	 * entity the client animated a backstab on (-1: none); see {@link #behindLoosely}.
+	 * Server: one swing ({@code stab} = right click), on the packet the client swung on. {@code claimedTarget}: what the
+	 * client saw the swing hit (-1: nothing), taken when the server's own trace finds something else or nothing but the
+	 * claim checks out ({@link #claim}); {@code claimedBackstab}: the entity the client animated a backstab on (-1: none),
+	 * see {@link #behindLoosely}. So a hit (and a backstab) you saw is the hit you get.
 	 */
-	public void attack(ServerPlayer player, ItemStack stack, boolean stab, int claimedBackstab) {
+	public void attack(ServerPlayer player, ItemStack stack, boolean stab, int claimedTarget, int claimedBackstab) {
 		ServerLevel level = player.level();
 		long now = level.getGameTime();
 		double due = stack.getOrDefault(ModComponents.NEXT_SHOT, 0.0);
@@ -118,6 +130,12 @@ public class KnifeItem extends Item implements CsWeapon {
 
 		if (hit != null && Ballistics.owner(hit.getEntity()) instanceof Player && hit.getLocation().distanceTo(eye) > csRange) {
 			hit = null; // players: CS2's own reach
+		}
+		if (claimedTarget >= 0 && (hit == null || hit.getEntity().getId() != claimedTarget)) {
+			EntityHitResult claimed = claim(level, player, claimedTarget, eye, stab);
+			if (claimed != null) {
+				hit = claimed;
+			}
 		}
 		boolean landed = hit != null;
 		boolean backHit = false;
@@ -160,6 +178,34 @@ public class KnifeItem extends Item implements CsWeapon {
 		double cycle = stab ? (landed ? STAB_HIT : STAB_MISS) : (landed ? SLASH_HIT : SLASH_MISS);
 		stack.set(ModComponents.NEXT_SHOT, at + cycle * 20.0);
 		dev.countercraft.AgentAnims.broadcast(player, "action_attack", attackType(stab, landed, landed && backHit), (float) cycle);
+	}
+
+	/**
+	 * The entity the client saw its swing hit, if that holds up here: something a knife can hit, within the reach (CS2's
+	 * against players, the longer one against mobs) plus {@link #CLAIM_SLACK}, its box (grown by the slack) on the line of
+	 * the swing, and no block between. The hit point is where that line meets the box (or the box's nearest point).
+	 */
+	private static EntityHitResult claim(ServerLevel level, ServerPlayer player, int id, Vec3 eye, boolean stab) {
+		Entity e = level.getEntity(id);
+		if (e == null || !Ballistics.hittable(e, player)) {
+			return null;
+		}
+		boolean isPlayer = Ballistics.owner(e) instanceof Player;
+		double reach = (isPlayer ? (stab ? STAB_RANGE : SLASH_RANGE) : (stab ? STAB_RANGE_MOB : SLASH_RANGE_MOB)) + CLAIM_SLACK;
+		Vec3 end = eye.add(player.getViewVector(1f).scale(reach));
+		AABB box = e.getBoundingBox().inflate(CLAIM_SLACK);
+		Vec3 at = box.contains(eye) ? eye : box.clip(eye, end).orElse(null);
+		if (at == null) {
+			return null;
+		}
+		AABB real = e.getBoundingBox();
+		Vec3 point = new Vec3(Math.max(real.minX, Math.min(real.maxX, at.x)), Math.max(real.minY, Math.min(real.maxY, at.y)),
+				Math.max(real.minZ, Math.min(real.maxZ, at.z)));
+		if (point.distanceTo(eye) > reach || level.clip(new ClipContext(eye, point, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player))
+				.getType() != HitResult.Type.MISS) {
+			return null;
+		}
+		return new EntityHitResult(e, point);
 	}
 
 	/**
@@ -220,8 +266,8 @@ public class KnifeItem extends Item implements CsWeapon {
 		}
 		toTarget = toTarget.normalize();
 		Vec3 look = Vec3.directionFromRotation(0f, attacker.getYHeadRot());
-		// behind the body (within ~65 degrees of straight behind) and facing it
-		if (toTarget.dot(body) < 0.4 || toTarget.dot(look) < 0.5) {
+		// behind the body (within 80 degrees of straight behind) and facing it (within 75)
+		if (toTarget.dot(body) < COS_80 || toTarget.dot(look) < COS_FACING) {
 			return false;
 		}
 		double along = (hitPoint.x - target.getX()) * body.x + (hitPoint.z - target.getZ()) * body.z;
@@ -230,9 +276,9 @@ public class KnifeItem extends Item implements CsWeapon {
 
 	/**
 	 * The client played a backstab: it saw the target a moment earlier and with its own (interpolated) facing, so the
-	 * server's exact test can disagree by a few degrees. The backstab counts when you're anywhere behind the target
-	 * (its head's facing for players, its body's for mobs) and facing it: what you saw is what you get, but a client
-	 * can't claim one from the front.
+	 * server's exact test can disagree by a few degrees (a target turning as you swing). The backstab counts when you're
+	 * behind the target, up to 100 degrees from straight behind (its head's facing for players, its body's for mobs), and
+	 * roughly facing it (within 80): what you saw is what you get, but a client can't claim one from the front.
 	 */
 	static boolean behindLoosely(LivingEntity attacker, LivingEntity target) {
 		Vec3 toTarget = new Vec3(target.getX() - attacker.getX(), 0, target.getZ() - attacker.getZ());
@@ -242,12 +288,12 @@ public class KnifeItem extends Item implements CsWeapon {
 		toTarget = toTarget.normalize();
 		Vec3 facing = Vec3.directionFromRotation(0f, target instanceof Player ? target.getYHeadRot() : target.yBodyRot);
 		Vec3 look = Vec3.directionFromRotation(0f, attacker.getYHeadRot());
-		return toTarget.dot(facing) > 0.0 && toTarget.dot(look) > 0.5;
+		return toTarget.dot(facing) > COS_100 && toTarget.dot(look) > COS_80;
 	}
 
-	/** The back zone: everything behind this distance along the body's facing (the rear half, plus a sliver). */
+	/** The back zone: everything behind this distance along the body's facing (the rear half, and a quarter more). */
 	public static double backZoneDepth(LivingEntity target) {
-		return target.getBbWidth() * 0.1;
+		return target.getBbWidth() * 0.25;
 	}
 
 	private static void sound(ServerLevel level, ServerPlayer player, String id) {

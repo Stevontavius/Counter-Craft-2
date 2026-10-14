@@ -927,6 +927,7 @@ def main():
     ap.add_argument("--only", nargs="*", help="convert just these guns, merging into the existing pack")
     ap.add_argument("--step", nargs="*", choices=["hud", "agent", "ui", "maps", "vmmaps", "voice", "arms", "musickits", "skins", "legacy", "agents", "gloves", "eyes", "ragdoll", "deathcam", "csgo", "pearl"], help="run just these steps, merging into the existing pack")
     ap.add_argument("--csgo-only", action="store_true", help="with --csgo: CS:GO's weapon sounds replace CS2's (no style choice in game)")
+    ap.add_argument("--since", help="with --step skins: OLD:NEW, the pack's step version and this one's: rebake only what changed")
     ap.add_argument("--csgo", nargs="?", const="auto", type=str,
                     help="OPTIONAL: also add CS:GO's weapon sounds from your own CS:GO install (Steam app 4465480; default: found next to CS2), "
                          "for CC2's Weapon Sound Style option. With --step csgo: just that, into the existing pack")
@@ -1046,8 +1047,12 @@ def main():
         if "skins" in args.step:
             import skins
             models = {"weapon_" + g["id"]: g["_asset"]["model"] for g in weapons.load() + melee if g.get("_asset", {}).get("model")}
-            skins.convert(cs2, assets, log, models, only={"weapon_" + x for x in args.only} if args.only else None)
-            skins.convert_pearl(cs2, assets, log)
+            since = [int(v) for v in args.since.split(":")] if args.since else None
+            rebake = skins.rebake_since(*since) if since else None
+            skins.convert(cs2, assets, log, models, only={"weapon_" + x for x in args.only} if args.only else None, rebake=rebake,
+                          export=lambda m: cs2.export(m, "gltf", *gltf_flags))
+            if rebake is None:  # an update rebakes only what changed; the pearlescence maps didn't
+                skins.convert_pearl(cs2, assets, log)
         if "pearl" in args.step and "skins" not in args.step:
             import skins
             skins.convert_pearl(cs2, assets, log)

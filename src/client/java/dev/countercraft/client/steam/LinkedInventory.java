@@ -41,7 +41,8 @@ public final class LinkedInventory {
 			SkinsConfig.setOwned(unlocks, p.name(), p.id64());
 			LoadoutConfig.unequipUnowned(); // anything sold or traded away comes off
 			LoadoutConfig.sync();
-			SteamLinkClient.setMessage((reset ? "Inventory refreshed: " : "Inventory copied: ") + unlocks.size() + " items from " + p.name() + " unlocked.");
+			SteamLinkClient.setMessage((reset ? "Inventory refreshed: " : "Inventory copied: ") + unlocks.size() + " items from " + p.name() + " unlocked. "
+					+ dev.countercraft.steam.SteamInventory.TRADE_PROTECTED);
 		}));
 	}
 }

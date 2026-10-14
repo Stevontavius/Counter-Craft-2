@@ -9,13 +9,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Another Chance's X-Ray glow is red, whatever the player's team colour. */
+/** The X-Ray glow is the player's team colour: T gold, CT blue. */
 @Mixin(EntityRenderer.class)
 abstract class SpectateGlowColorMixin {
 	@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;F)V", at = @At("TAIL"))
-	private void countercraft$red(final Entity entity, final EntityRenderState state, final float partial, final CallbackInfo ci) {
-		if (Spectate.xray(entity)) {
-			state.outlineColor = 0xFFFF0000;
+	private void countercraft$teamColour(final Entity entity, final EntityRenderState state, final float partial, final CallbackInfo ci) {
+		if (Spectate.xray(entity) && entity instanceof net.minecraft.world.entity.player.Player p) {
+			state.outlineColor = 0xFF000000 | dev.countercraft.team.Teams.color(p);
 		}
 	}
 }

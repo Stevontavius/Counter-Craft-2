@@ -42,11 +42,13 @@ public final class AgentPip {
 
 	/**
 	 * One agent preview to draw; {@code item}: a Minecraft item in the hand instead of a weapon, held like the default
-	 * knife {@code itemKnife} (null: a block, upright), as agents hold them in the world.
+	 * knife {@code itemKnife} (null: a block, upright), as agents hold them in the world ({@code itemStack}: which item, so a
+	 * spear is held as one).
 	 */
 	public record State(String agent, String gun, dev.countercraft.client.skins.Skins.Skin finish, String clip, float clipTime, Scene scene, int x0, int y0,
 			int x1, int y1, ScreenRectangle scissorArea, ScreenRectangle bounds, net.minecraft.client.renderer.item.ItemStackRenderState item,
-			String itemKnife, dev.countercraft.client.skins.Skins.Glove glove) implements PictureInPictureRenderState {
+			net.minecraft.world.item.ItemStack itemStack, String itemKnife, dev.countercraft.client.skins.Skins.Glove glove)
+			implements PictureInPictureRenderState {
 		@Override
 		public float scale() {
 			return 1f;
@@ -67,19 +69,19 @@ public final class AgentPip {
 	/** As above, the weapon wearing {@code finish} (a paint kit of {@code gun}, or null for the plain weapon). */
 	public static void draw(GuiGraphicsExtractor g, String agent, String gun, dev.countercraft.client.skins.Skins.Skin finish, String clip, float clipTime,
 			Scene scene, int x0, int y0, int x1, int y1) {
-		draw(g, agent, gun, finish, clip, clipTime, scene, x0, y0, x1, y1, null, null, null);
+		draw(g, agent, gun, finish, clip, clipTime, scene, x0, y0, x1, y1, null, net.minecraft.world.item.ItemStack.EMPTY, null, null);
 	}
 
 	/** As above, holding a Minecraft item (see {@link State#item}) and wearing {@code glove} (null: the agent's own). */
 	public static void draw(GuiGraphicsExtractor g, String agent, String gun, dev.countercraft.client.skins.Skins.Skin finish, String clip, float clipTime,
-			Scene scene, int x0, int y0, int x1, int y1, net.minecraft.client.renderer.item.ItemStackRenderState item, String itemKnife,
-			dev.countercraft.client.skins.Skins.Glove glove) {
+			Scene scene, int x0, int y0, int x1, int y1, net.minecraft.client.renderer.item.ItemStackRenderState item,
+			net.minecraft.world.item.ItemStack itemStack, String itemKnife, dev.countercraft.client.skins.Skins.Glove glove) {
 		if (AgentClient.data() == null) {
 			return;
 		}
 		ScreenRectangle r = new ScreenRectangle(x0, y0, x1 - x0, y1 - y0);
 		((GuiGraphicsAccessor) g).countercraft$guiRenderState().addPicturesInPictureState(
-				new State(agent, gun, finish, clip, clipTime, scene, x0, y0, x1, y1, null, r, item, itemKnife, glove));
+				new State(agent, gun, finish, clip, clipTime, scene, x0, y0, x1, y1, null, r, item, itemStack, itemKnife, glove));
 	}
 
 	/** The CS2 buy menu clip for a weapon (mod id) and team, or null: t_buymenu_ak_03, ct_buymenu_m4a1 (= M4A1-S)... */
@@ -194,7 +196,8 @@ public final class AgentPip {
 			agentRenderer.glove = s.glove();
 		agentRenderer.submit(data, model, anim, s.gun(), ps, collector, LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, false);
 			if (s.item() != null) {
-				agentRenderer.submitItem(data, anim, s.item(), ps, collector, LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0, s.itemKnife());
+				agentRenderer.submitItem(data, anim, s.item(), s.itemStack(), null, ps, collector, LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0,
+						s.itemKnife());
 			}
 		}
 

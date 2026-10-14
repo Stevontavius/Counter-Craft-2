@@ -5,7 +5,7 @@
 	"client": [
 		"AbstractClientPlayerMixin",
 		"AdvancementToastAccessor",
-		"AgentRenderMixin", "SoundManagerMixin", "AvatarLayersMixin", "SpectateGlowMixin", "SpectateGlowColorMixin",
+		"AgentRenderMixin", "SoundManagerMixin", "SpectateGlowMixin", "SpectateGlowColorMixin",
 		"AvatarRendererMixin",
 		"BlockLightMixin",
 		"CameraMixin",
@@ -27,6 +27,7 @@
 		"ItemStackRenderStateAccessor",
 		"KeyboardInputMixin",
 		"LivingEntityMixin",
+		"LivingEntityMovementInvoker",
 		"LivingEntityRendererInvoker",
 		"LocalPlayerPostMixin",
 		"LocatorBarMixin",

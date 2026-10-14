@@ -18,8 +18,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A linked player's public CS2 inventory, read by the server itself (steamcommunity.com/inventory/&lt;id&gt;/730/2 and /16, no
- * key, public inventories only) so the Genuine Skins check can't be fooled by a client. Kept as the items' market names
+ * A linked player's public CS2 inventory, read by the server itself (steamcommunity.com/inventory/&lt;id&gt;/730/2, no key,
+ * public inventories only) so the Genuine Skins check can't be fooled by a client. Kept as the items' market names
  * without wear, StatTrak, Souvenir or the star ("karambit | fade"), refreshed at most every ten minutes per account.
  */
 public final class SteamInventory {
@@ -57,21 +57,21 @@ public final class SteamInventory {
 	}
 
 	/**
-	 * CS2's inventory contexts: 2 is the inventory, 16 holds trade-protected items (traded in the last 7 days), which
-	 * Steam leaves out of context 2. Context 16 failing (it's often empty) doesn't make the inventory unavailable.
+	 * CS2's inventory, context 2. Trade-protected items (traded in the last 7 days) sit in context 16, which Steam shows
+	 * only to the owner signed in (anyone else gets no items, and the inventory page doesn't list the context): they can't
+	 * be read until their protection ends and they're back in context 2 ({@link #TRADE_PROTECTED}).
 	 */
-	public static final String[] CONTEXTS = {"2", "16"};
+	private static final String CONTEXT = "2";
+
+	/** What players are told about the items no one but them can see. */
+	public static final String TRADE_PROTECTED = "Items traded to you in the last 7 days stay hidden until their trade protection ends: Steam keeps "
+			+ "them private.";
 
 	private static CompletableFuture<Owned> fetch(String steamId) {
 		return CompletableFuture.supplyAsync(() -> {
 			Set<String> names = new HashSet<>();
-			for (String ctx : CONTEXTS) {
-				Owned failed = fetch(steamId, ctx, names);
-				if (failed != null && ctx.equals(CONTEXTS[0])) {
-					return failed;
-				}
-			}
-			return new Owned(Set.copyOf(names), Status.OK, System.currentTimeMillis());
+			Owned failed = fetch(steamId, CONTEXT, names);
+			return failed != null ? failed : new Owned(Set.copyOf(names), Status.OK, System.currentTimeMillis());
 		});
 	}
 

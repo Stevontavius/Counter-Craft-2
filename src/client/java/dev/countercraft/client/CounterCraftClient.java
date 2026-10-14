@@ -95,6 +95,7 @@ public class CounterCraftClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(CvarsPayload.TYPE, (payload, context) -> {
 			GunClient.infiniteAmmo = payload.infiniteAmmo();
 			dev.countercraft.movement.CsMove.maxVelocity = payload.maxVelocity();
+			dev.countercraft.movement.CsMove.airAccelerate = payload.airAccelerate();
 		});
 		ClientPlayNetworking.registerGlobalReceiver(RadioFxPayload.TYPE, (payload, context) -> RadioClient.onRadio(payload));
 		ClientPlayNetworking.registerGlobalReceiver(PingPayload.TYPE, (payload, context) -> Pings.onPing(payload));
@@ -116,6 +117,9 @@ public class CounterCraftClient implements ClientModInitializer {
 				(payload, context) -> dev.countercraft.client.hud.RoundCycle.onDaySurvived(payload));
 		ClientTickEvents.END_CLIENT_TICK.register(dev.countercraft.client.hud.RoundCycle::tick);
 		HudElementRegistry.addLast(CounterCraft.id("compass"), (g, delta) -> dev.countercraft.client.hud.CompassHud.render(g));
+		// hardcore: every player's whereabouts (or DEAD); drawn after the panels it fits around (below)
+		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.TeamListPayload.TYPE,
+				(payload, context) -> dev.countercraft.client.hud.TeamListHud.onList(payload));
 		// boss bars go below the locator bar and the compass at the top
 		HudElementRegistry.replaceElement(net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements.BOSS_BAR, boss -> (g, delta) -> {
 			g.pose().pushMatrix();
@@ -126,6 +130,7 @@ public class CounterCraftClient implements ClientModInitializer {
 		HudElementRegistry.addLast(CounterCraft.id("kill_feed"), (g, delta) -> dev.countercraft.client.hud.KillFeed.render(g));
 		HudElementRegistry.addLast(CounterCraft.id("money"), (g, delta) -> dev.countercraft.client.hud.MoneyHud.draw(g));
 		HudElementRegistry.addLast(CounterCraft.id("paperdoll"), (g, delta) -> dev.countercraft.client.hud.PaperdollHud.draw(g));
+		HudElementRegistry.addLast(CounterCraft.id("team_list"), (g, delta) -> dev.countercraft.client.hud.TeamListHud.draw(g));
 		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.KillFeedPayload.TYPE,
 				(payload, context) -> dev.countercraft.client.hud.KillFeed.onKill(payload));
 		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.HitSoundPayload.TYPE,

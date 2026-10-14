@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "countercraft:cut_copper_surf_ramp",
+    "countercraft:exposed_cut_copper_surf_ramp",
+    "countercraft:oxidized_cut_copper_surf_ramp",
+    "countercraft:waxed_cut_copper_surf_ramp",
+    "countercraft:waxed_exposed_cut_copper_surf_ramp",
+    "countercraft:waxed_oxidized_cut_copper_surf_ramp",
+    "countercraft:waxed_weathered_cut_copper_surf_ramp",
+    "countercraft:weathered_cut_copper_surf_ramp"
+  ]
+}

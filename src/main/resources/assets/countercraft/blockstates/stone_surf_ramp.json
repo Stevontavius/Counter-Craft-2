@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "countercraft:block/stone_surf_ramp"
+    },
+    "facing=east": {
+      "model": "countercraft:block/stone_surf_ramp",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "countercraft:block/stone_surf_ramp",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "countercraft:block/stone_surf_ramp",
+      "y": 270
+    }
+  }
+}

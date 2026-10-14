@@ -218,7 +218,7 @@ public final class LoadoutScreen extends Screen {
 		}
 		float time = front ? (System.nanoTime() - poseSince) / 1e9f : 10f;
 		AgentPip.draw(g, AgentClient.agentFor(t), gun, finish, AgentPip.clipFor(t, gun), time, ct ? AgentPip.LOADOUT_CT : AgentPip.LOADOUT_T, (int) ax, (int) y0,
-				(int) (ax + 332 * k), (int) (y0 + h), null, null, AgentClient.gloveFor(t));
+				(int) (ax + 332 * k), (int) (y0 + h), null, net.minecraft.world.item.ItemStack.EMPTY, null, AgentClient.gloveFor(t));
 		// team title on the agent
 		String title = ct ? "CT EQUIPMENT" : "T EQUIPMENT";
 		float tw = CsUi.textWidth(title, 20, uiH()) + 16 * k;

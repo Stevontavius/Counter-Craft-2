@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "surf_ramps",
+  "ingredients": [
+    "minecraft:crimson_stairs",
+    "minecraft:feather"
+  ],
+  "result": {
+    "count": 1,
+    "id": "countercraft:crimson_surf_ramp"
+  }
+}

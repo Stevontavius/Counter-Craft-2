@@ -35,9 +35,6 @@ import net.minecraft.world.phys.Vec3;
  * weapon actions from this client's guns and from the server (other players).
  */
 public final class AgentClient {
-	/** Drawing a player's Minecraft model for Minecraft's glow alone, under their agent (AgentRenderMixin). */
-	public static boolean outlineOnly;
-
 	/** CS2's default agents (items_game customplayer_t_map_based / customplayer_ct_map_based). */
 	public static final String AGENT = "tm_phoenix";
 	public static final String AGENT_CT = "ctm_sas";
@@ -229,6 +226,9 @@ public final class AgentClient {
 			// gliding, the body lies along the flight (see submit): the head and arms look ahead along it
 			float t = p.getFallFlyingTicks() + partialTick;
 			in.pitch += (GLIDE_PITCH - in.pitch) * Math.min(1f, t * t / 100f);
+		} else if (!firstPerson) {
+			// swimming (and crawling) lies flat the same way: the same look ahead
+			in.pitch += (GLIDE_PITCH - in.pitch) * p.getSwimAmount(partialTick);
 		}
 		in.uprightTorso = firstPerson;
 		if (!in.onGround) {
@@ -260,6 +260,9 @@ public final class AgentClient {
 		}
 		if (p.getMainHandItem().isEmpty()) {
 			s.anim.punch();
+		} else if (current.animation().type() == net.minecraft.world.item.SwingAnimationType.STAB) {
+			// a spear's jab: CS2's knife stab (a thrust), with Minecraft's own spear motion on the item (AgentRenderer.submitItem)
+			s.anim.action("action_attack", "attack_knife_heavymiss", Math.max(0.4f, current.durationTicks() / 20f));
 		} else {
 			s.anim.action("action_attack", "attack_knife_lightmiss", 0.4f);
 		}
@@ -372,11 +375,25 @@ public final class AgentClient {
 				ps.rotate(com.mojang.math.Axis.YP.rotation(state.flyingYRot));
 			}
 			ps.rotate(com.mojang.math.Axis.YP.rotationDegrees(s.anim.bodyYaw)); // the renderer turns by the body yaw itself
+		} else if (state.swimAmount > 0f) {
+			// swimming (sprint-swimming, crawling): lying flat like gliding, as Minecraft tips a swimming player (along the
+			// aim in water, level out of it), shifted into the swimming hitbox as Minecraft does
+			ps.rotate(com.mojang.math.Axis.YP.rotationDegrees(-s.anim.bodyYaw));
+			ps.rotate(com.mojang.math.Axis.XP.rotationDegrees(state.swimAmount * (state.isInWater ? 90f + state.xRot : 90f)));
+			if (state.isVisuallySwimming) {
+				ps.translate(0f, -1f, -0.3f);
+			}
+			ps.rotate(com.mojang.math.Axis.YP.rotationDegrees(s.anim.bodyYaw));
 		}
 		s.renderer.lastMuzzle = null;
 		s.renderer.finish = s.skin;
 		s.renderer.glove = s.glove;
-		s.renderer.submit(data, data.model(s.agent), s.anim, s.gun, ps, collector, state.lightCoords, overlay, false);
+		s.renderer.outline = state.outlineColor; // Minecraft's glow, in the agent's shape
+		try {
+			s.renderer.submit(data, data.model(s.agent), s.anim, s.gun, ps, collector, state.lightCoords, overlay, false);
+		} finally {
+			s.renderer.outline = 0;
+		}
 		if (s.renderer.lastMuzzle != null) {
 			org.joml.Vector3f m = s.renderer.lastMuzzle;
 			s.muzzle = Minecraft.getInstance().gameRenderer.mainCamera().position().add(m.x(), m.y(), m.z());
@@ -385,7 +402,8 @@ public final class AgentClient {
 		if (s.gun == null && !state.rightHandItemState.isEmpty()) {
 			// Minecraft items are held like the team's default knife (blocks: upright in the hand)
 			String knife = s.heldBlock ? null : dev.countercraft.team.Teams.CT.equals(s.team) ? "knife_ct" : "knife_t";
-			s.renderer.submitItem(data, s.anim, state.rightHandItemState, ps, collector, state.lightCoords, overlay, state.outlineColor, knife);
+			s.renderer.submitItem(data, s.anim, state.rightHandItemState, state.rightHandItemStack, state, ps, collector, state.lightCoords, overlay,
+					state.outlineColor, knife);
 		}
 		wings(state, ps, collector, s, renderer);
 		ps.popPose();

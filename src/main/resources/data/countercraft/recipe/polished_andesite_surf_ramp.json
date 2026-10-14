@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "surf_ramps",
+  "ingredients": [
+    "minecraft:polished_andesite_stairs",
+    "minecraft:feather"
+  ],
+  "result": {
+    "count": 1,
+    "id": "countercraft:polished_andesite_surf_ramp"
+  }
+}

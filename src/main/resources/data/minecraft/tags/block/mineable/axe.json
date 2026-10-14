@@ -1,0 +1,19 @@
+{
+  "replace": false,
+  "values": [
+    "countercraft:acacia_surf_ramp",
+    "countercraft:bamboo_mosaic_surf_ramp",
+    "countercraft:bamboo_surf_ramp",
+    "countercraft:birch_surf_ramp",
+    "countercraft:cherry_surf_ramp",
+    "countercraft:crimson_surf_ramp",
+    "countercraft:dark_oak_surf_ramp",
+    "countercraft:jungle_surf_ramp",
+    "countercraft:mangrove_surf_ramp",
+    "countercraft:oak_surf_ramp",
+    "countercraft:pale_oak_surf_ramp",
+    "countercraft:poplar_surf_ramp",
+    "countercraft:spruce_surf_ramp",
+    "countercraft:warped_surf_ramp"
+  ]
+}

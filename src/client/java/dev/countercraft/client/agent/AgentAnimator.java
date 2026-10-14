@@ -88,6 +88,11 @@ public final class AgentAnimator {
 	private float punchT = -1f;
 	private float aimPitch;
 
+	/** Where the upper body aims, degrees up. */
+	public float aimPitch() {
+		return aimPitch;
+	}
+
 	public AgentAnimator(AgentData data) {
 		this.data = data;
 		AgentSkeleton skel = data.skeleton();

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:block",
+  "random_sequence": "countercraft:blocks/orange_wool_surf_ramp",
+  "pools": [
+    {
+      "rolls": 1,
+      "condition": {
+        "type": "minecraft:survives_explosion"
+      },
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "countercraft:orange_wool_surf_ramp"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:block",
+  "random_sequence": "countercraft:blocks/jungle_surf_ramp",
+  "pools": [
+    {
+      "rolls": 1,
+      "condition": {
+        "type": "minecraft:survives_explosion"
+      },
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "countercraft:jungle_surf_ramp"
+        }
+      ]
+    }
+  ]
+}

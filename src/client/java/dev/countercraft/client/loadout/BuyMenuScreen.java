@@ -165,7 +165,7 @@ public final class BuyMenuScreen extends Screen {
 		}
 		String agent = AgentClient.agentFor(team);
 		AgentPip.draw(g, agent, gun, finish(gun), AgentPip.clipFor(team, gun), (System.nanoTime() - shownSince) / 1e9f, AgentPip.BUY_MENU, 0, 0, width, height,
-				null, null, dev.countercraft.client.agent.AgentClient.gloveFor(team));
+				null, net.minecraft.world.item.ItemStack.EMPTY, null, dev.countercraft.client.agent.AgentClient.gloveFor(team));
 
 		float x0 = left();
 		// money / info bar

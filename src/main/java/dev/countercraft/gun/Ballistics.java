@@ -114,27 +114,49 @@ public final class Ballistics {
 		level.sendParticles(ParticleTypes.CRIT, p.x, p.y, p.z, 2, 0.0, 0.0, 0.0, 0.1);
 	}
 
-	/** Fire one bullet from {@code from} along {@code dir} (unit vector). */
+	/**
+	 * Collaterals (Counter-Craft's rule, like the wallbangs above; CS2's own loss through a body isn't measured): a bullet
+	 * carries on through a body into whatever is behind it, through as many bodies as the gun's CS2 penetration rounded
+	 * down (pistols, SMGs and shotguns 1, rifles and snipers 2, the Zeus none), keeping {@link #BODY_DAMAGE} of its damage
+	 * each time. A hit behind a body counts as a penetration (the kill feed's wallbang icon, as CS2 shows it).
+	 */
+	public static final float BODY_DAMAGE = 0.75f;
+
+	/**
+	 * Fire one bullet from {@code from} along {@code dir} (unit vector). The result is the first thing it hit, with
+	 * {@code hitPos} where the bullet ended (past the bodies it went through).
+	 */
 	public static ShotResult shoot(ServerLevel level, LivingEntity shooter, GunSpec spec, Vec3 from, Vec3 dir) {
 		Vec3 to = from.add(dir.scale(Math.min(RANGE, spec.range() / UNITS_PER_BLOCK)));
 		boolean woodLeft = woodbang(spec);
 		boolean awp = spec.id().equals("awp");
 		int leavesLeft = MAX_LEAVES;
+		int bodiesLeft = spec.taser() ? 0 : (int) spec.penetration();
 		float through = 1f;          // damage left after what the bullet went through
 		boolean penetrated = false;
 		Vec3 cur = from;
-		EntityHit entity = null;
+		ShotResult first = null;
+		java.util.Set<Entity> hitAlready = new java.util.HashSet<>();
 		for (int guard = 0; guard < MAX_LEAVES + 16; guard++) {
 			BlockHitResult block = level.clip(new ClipContext(cur, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, shooter));
 			Vec3 end = block.getType() == HitResult.Type.MISS ? to : block.getLocation();
-			EntityHit e = traceEntity(level, shooter, cur, dir, cur.distanceTo(end));
+			EntityHit e = traceEntity(level, shooter, cur, dir, cur.distanceTo(end), hitAlready);
 			if (e != null) {
 				// distances count from the muzzle (CS2's falloff)
-				entity = new EntityHit(e.entity(), e.point(), from.distanceTo(e.point()), e.group());
-				break;
+				ShotResult r = hit(level, shooter, spec, from, new EntityHit(e.entity(), e.point(), from.distanceTo(e.point()), e.group()), through,
+						penetrated);
+				first = first == null ? r : first;
+				hitAlready.add(owner(e.entity())); // all of a dragon: not its next part too
+				if (r.target() == null || bodiesLeft-- <= 0) { // deflected (a perched dragon), or no penetration left
+					return withEnd(first, e.point());
+				}
+				through *= BODY_DAMAGE;
+				penetrated = true;
+				cur = e.point();
+				continue;
 			}
 			if (block.getType() == HitResult.Type.MISS) {
-				return ShotResult.miss(end, from.distanceTo(end));
+				return first != null ? withEnd(first, end) : ShotResult.miss(end, from.distanceTo(end));
 			}
 			net.minecraft.core.BlockPos pos = block.getBlockPos();
 			net.minecraft.world.level.block.state.BlockState st = level.getBlockState(pos);
@@ -155,17 +177,23 @@ public final class Ballistics {
 			}
 			impact(level, end);
 			if (next == null) {
-				return ShotResult.miss(end, from.distanceTo(end));
+				return first != null ? withEnd(first, end) : ShotResult.miss(end, from.distanceTo(end));
 			}
 			if (!glass(st)) {
 				penetrated = true;
 			}
 			cur = next;
 		}
-		if (entity == null) {
-			return ShotResult.miss(cur, from.distanceTo(cur));
-		}
+		return first != null ? withEnd(first, cur) : ShotResult.miss(cur, from.distanceTo(cur));
+	}
 
+	private static ShotResult withEnd(ShotResult r, Vec3 end) {
+		return new ShotResult(r.target(), r.distance(), r.headshot(), r.damageMc(), end);
+	}
+
+	/** The bullet hits {@code entity} with {@code through} of its damage left; a miss result when it's deflected. */
+	private static ShotResult hit(ServerLevel level, LivingEntity shooter, GunSpec spec, Vec3 from, EntityHit entity, float through,
+			boolean penetrated) {
 		Entity target = entity.entity();
 		Vec3 hit = entity.point();
 		double dist = entity.distance();
@@ -219,10 +247,15 @@ public final class Ballistics {
 	 * then their Minecraft box (legs / generic); without model data, head above eye height - {@link #HEAD_MARGIN}.
 	 */
 	public static EntityHit traceEntity(ServerLevel level, Entity shooter, Vec3 from, Vec3 dir, double maxDist) {
+		return traceEntity(level, shooter, from, dir, maxDist, java.util.Set.of());
+	}
+
+	/** As above, passing over {@code skip} (bodies the bullet already went through). */
+	public static EntityHit traceEntity(ServerLevel level, Entity shooter, Vec3 from, Vec3 dir, double maxDist, java.util.Set<Entity> skip) {
 		Vec3 end = from.add(dir.scale(maxDist));
 		AABB sweep = new AABB(from, end).inflate(1.0);
 		EntityHit best = null;
-		for (Entity e : level.getEntities(shooter, sweep, x -> hittable(x, shooter))) {
+		for (Entity e : level.getEntities(shooter, sweep, x -> hittable(x, shooter) && !skip.contains(owner(x)))) {
 			if (Hitboxes.uses(e)) {
 				Hitboxes.Hit h = Hitboxes.trace(e, from, dir, maxDist);
 				if (h != null && (best == null || h.distance() < best.distance())) {

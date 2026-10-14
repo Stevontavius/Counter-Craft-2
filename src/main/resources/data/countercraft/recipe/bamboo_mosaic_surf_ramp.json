@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "surf_ramps",
+  "ingredients": [
+    "minecraft:bamboo_mosaic_stairs",
+    "minecraft:feather"
+  ],
+  "result": {
+    "count": 1,
+    "id": "countercraft:bamboo_mosaic_surf_ramp"
+  }
+}

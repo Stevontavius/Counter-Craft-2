@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:block",
+  "random_sequence": "countercraft:blocks/polished_andesite_surf_ramp",
+  "pools": [
+    {
+      "rolls": 1,
+      "condition": {
+        "type": "minecraft:survives_explosion"
+      },
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "countercraft:polished_andesite_surf_ramp"
+        }
+      ]
+    }
+  ]
+}

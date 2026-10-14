@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "surf_ramps",
+  "ingredients": [
+    "minecraft:polished_blackstone_brick_stairs",
+    "minecraft:feather"
+  ],
+  "result": {
+    "count": 1,
+    "id": "countercraft:polished_blackstone_brick_surf_ramp"
+  }
+}

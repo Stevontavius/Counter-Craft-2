@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "surf_ramps",
+  "ingredients": [
+    "minecraft:cinnabar_stairs",
+    "minecraft:feather"
+  ],
+  "result": {
+    "count": 1,
+    "id": "countercraft:cinnabar_surf_ramp"
+  }
+}

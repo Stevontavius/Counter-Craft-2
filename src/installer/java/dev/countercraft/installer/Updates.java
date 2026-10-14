@@ -23,8 +23,10 @@ import java.util.zip.ZipInputStream;
 /**
  * The installer keeping itself up to date. When it starts it reads Counter-Craft 2's public release list on GitHub
  * (nothing about the player is sent) and, if a newer release has an installer, offers it. Update Installer downloads that
- * release's installer zip, checks it against the SHA-256 GitHub lists for it, puts the new installer jar and its Run bat
- * next to this one, starts the new one and closes this one; the new one then deletes the old jar.
+ * release's installer jar (or, from a release without one, its installer zip, taking the jar out of it wherever it is: the
+ * Windows app keeps it under app\), checks it against the SHA-256 GitHub lists for it, puts it next to this one, starts
+ * the new one and closes this one; the new one then deletes the old jar. The Windows app keeps its exe and Java and only
+ * swaps the jar. A release has both: the zip (the Windows app) and the jar (any system with Java 25).
  */
 final class Updates {
 	static final String REPO = "Stevontavius/Counter-Craft-2";
@@ -32,13 +34,14 @@ final class Updates {
 	/** {@code -Dcc2.releases=<url>}: read another release list (testing an update without publishing one). */
 	private static final String API = System.getProperty("cc2.releases", "https://api.github.com/repos/" + REPO + "/releases?per_page=20");
 	private static final Pattern NUMBERS = Pattern.compile("(\\d+)\\.(\\d+)(?:\\.(\\d+))?");
-	private static final Pattern INSTALLER_ZIP = Pattern.compile("Counter-Craft-2-Installer-[A-Za-z0-9.-]+\\.zip");
-	/** The jars an installer is named (this release on, and the BETA 1.0 test build): the only files an update deletes. */
+	/** A release's installers: CC2-Installer-Beta-1.2-Universal.jar and -Windows.zip (BETA 1.0 - 1.1.1: Counter-Craft-2-Installer-BETA-x.zip). */
+	private static final Pattern INSTALLER_ASSET = Pattern.compile("(Counter-Craft-2-Installer|CC2-Installer)-[A-Za-z0-9.-]+\\.(jar|zip)");
+	/** The jars an installer is named (both schemes, and the BETA 1.0 test build): the only files an update deletes. */
 	private static final Pattern INSTALLER_JAR = Pattern.compile("(Counter-Craft-2-Installer|CC2-Installer)-[A-Za-z0-9.-]+\\.jar");
 	static final String BAT = "Run Counter-Craft 2 Installer.bat";
 
-	/** A release with an installer: its name, version numbers, the installer zip (url, size, SHA-256) and its page. */
-	record Release(String name, int[] version, String zip, String url, long size, String sha256, String page) {
+	/** A release with an installer: its name, version numbers, the installer jar or zip (url, size, SHA-256) and its page. */
+	record Release(String name, int[] version, String asset, String url, long size, String sha256, String page) {
 	}
 
 	private Updates() {
@@ -76,7 +79,10 @@ final class Updates {
 		return pick(Json.parse(body), version(Install.RELEASE));
 	}
 
-	/** From GitHub's release list: the newest release (not a draft) with an installer zip, if newer than {@code ours}. */
+	/**
+	 * From GitHub's release list: the newest release (not a draft) with an installer jar or zip (the jar if it has both), if
+	 * newer than {@code ours}.
+	 */
 	static Release pick(Object list, int[] ours) {
 		Release best = null;
 		if (!(list instanceof List<?> releases)) {
@@ -93,13 +99,18 @@ final class Updates {
 			if (!(r.get("assets") instanceof List<?> assets)) {
 				continue;
 			}
+			Map<?, ?> asset = null;
 			for (Object a : assets) {
-				if (a instanceof Map<?, ?> asset && asset.get("name") instanceof String name && INSTALLER_ZIP.matcher(name).matches()) {
-					String digest = asset.get("digest") instanceof String d && d.startsWith("sha256:") ? d.substring(7) : null;
-					String title = r.get("name") instanceof String n && !n.isBlank() ? n : String.valueOf(r.get("tag_name"));
-					best = new Release(title, v, name, String.valueOf(asset.get("browser_download_url")),
-							asset.get("size") instanceof Double d ? d.longValue() : -1, digest, String.valueOf(r.get("html_url")));
+				if (a instanceof Map<?, ?> m && m.get("name") instanceof String name && INSTALLER_ASSET.matcher(name).matches()
+						&& (asset == null || name.endsWith(".jar"))) {
+					asset = m; // the jar is all an update swaps: no need for the zip's 30 MB of Java
 				}
+			}
+			if (asset != null) {
+				String digest = asset.get("digest") instanceof String d && d.startsWith("sha256:") ? d.substring(7) : null;
+				String title = r.get("name") instanceof String n && !n.isBlank() ? n : String.valueOf(r.get("tag_name"));
+				best = new Release(title, v, String.valueOf(asset.get("name")), String.valueOf(asset.get("browser_download_url")),
+						asset.get("size") instanceof Double d ? d.longValue() : -1, digest, String.valueOf(r.get("html_url")));
 			}
 		}
 		return best;
@@ -112,15 +123,15 @@ final class Updates {
 	}
 
 	/**
-	 * Download {@code r}'s installer, check it, and put its jar and Run bat next to this installer. Returns the new jar.
-	 * Nothing is replaced unless the download matches GitHub's SHA-256.
+	 * Download {@code r}'s installer, check it, and put its jar (and a zip's Run bat) next to this installer. Returns the
+	 * new jar. Nothing is replaced unless the download matches GitHub's SHA-256.
 	 */
 	static Path download(Release r, LongConsumer progress) throws IOException {
 		if (r.sha256() == null) {
-			throw new IOException("GitHub lists no checksum for " + r.zip() + ", so it can't be checked: download it from " + r.page());
+			throw new IOException("GitHub lists no checksum for " + r.asset() + ", so it can't be checked: download it from " + r.page());
 		}
 		Path dir = Install.self().getParent();
-		Path zip = dir.resolve(".cc2-installer-update.zip");
+		Path dl = dir.resolve(".cc2-installer-update");
 		MessageDigest sha;
 		try {
 			sha = MessageDigest.getInstance("SHA-256");
@@ -131,7 +142,7 @@ final class Updates {
 		c.setConnectTimeout(20_000);
 		c.setReadTimeout(60_000);
 		c.setRequestProperty("User-Agent", "Counter-Craft-2-Installer");
-		try (InputStream in = c.getInputStream(); OutputStream out = Files.newOutputStream(zip)) {
+		try (InputStream in = c.getInputStream(); OutputStream out = Files.newOutputStream(dl)) {
 			byte[] buf = new byte[1 << 16];
 			long n = 0;
 			for (int k; (k = in.read(buf)) > 0;) {
@@ -147,9 +158,17 @@ final class Updates {
 				throw new IOException("the download doesn't match GitHub's checksum (got " + got.substring(0, 12) + "..., expected "
 						+ r.sha256().substring(0, 12) + "...): nothing was changed");
 			}
+			if (r.asset().endsWith(".jar")) {
+				Path jar = dir.resolve(r.asset());
+				if (jar.equals(Install.self())) {
+					throw new IOException("the new installer has the same name as this one (" + r.asset() + ")");
+				}
+				Files.move(dl, jar, StandardCopyOption.REPLACE_EXISTING);
+				return jar;
+			}
 			Path jar = null;
 			List<Path> written = new ArrayList<>();
-			try (ZipInputStream z = new ZipInputStream(Files.newInputStream(zip))) {
+			try (ZipInputStream z = new ZipInputStream(Files.newInputStream(dl))) {
 				for (ZipEntry e; (e = z.getNextEntry()) != null;) {
 					String name = Path.of(e.getName()).getFileName().toString();
 					boolean isJar = INSTALLER_JAR.matcher(name).matches();
@@ -169,7 +188,7 @@ final class Updates {
 				}
 			}
 			if (jar == null) {
-				throw new IOException(r.zip() + " has no installer jar in it");
+				throw new IOException(r.asset() + " has no installer jar in it");
 			}
 			for (Path tmp : written) {
 				String n = tmp.getFileName().toString();
@@ -177,14 +196,43 @@ final class Updates {
 			}
 			return jar;
 		} finally {
-			Files.deleteIfExists(zip);
+			Files.deleteIfExists(dl);
 		}
 	}
 
-	/** Start the new installer (with the same Java as this one), telling it which jar it replaces. */
+	/**
+	 * Start the new installer, telling it which jar it replaces. As the Windows app (Counter-Craft 2 Installer.exe, its own
+	 * Java: jpackage sets jpackage.app-path), the app's settings file (app/&lt;name&gt;.cfg) is pointed at the new jar and the
+	 * exe started again; as a plain jar, the new jar is started with the same Java as this one.
+	 */
 	static void launch(Path jar) throws IOException {
+		String exe = System.getProperty("jpackage.app-path");
+		Path old = Install.self();
+		if (exe != null) {
+			Path cfg = appConfig(old.getParent());
+			if (cfg == null) {
+				throw new IOException("the installer app's settings file (app\\*.cfg) wasn't found");
+			}
+			String text = Files.readString(cfg);
+			Files.writeString(cfg, text.replace(old.getFileName().toString(), jar.getFileName().toString()));
+			new ProcessBuilder(exe, "--replaced", old.toString()).directory(Path.of(exe).getParent().toFile()).start();
+			return;
+		}
 		String java = ProcessHandle.current().info().command().orElse("javaw");
-		new ProcessBuilder(java, "-jar", jar.toString(), "--replaced", Install.self().toString()).directory(jar.getParent().toFile()).start();
+		new ProcessBuilder(java, "-jar", jar.toString(), "--replaced", old.toString()).directory(jar.getParent().toFile()).start();
+	}
+
+	/** The app image's launcher settings (the .cfg naming the jar it runs) in {@code appDir}, or null. */
+	static Path appConfig(Path appDir) throws IOException {
+		try (var s = Files.list(appDir)) {
+			return s.filter(p -> p.getFileName().toString().endsWith(".cfg")).filter(p -> {
+				try {
+					return Files.readString(p).contains("app.classpath");
+				} catch (IOException e) {
+					return false;
+				}
+			}).findFirst().orElse(null);
+		}
 	}
 
 	/** Started by an update: delete the installer jar it replaced (once that one has closed), if it's an installer next to this one. */
@@ -194,6 +242,19 @@ final class Updates {
 		if (!INSTALLER_JAR.matcher(old.getFileName().toString()).matches() || self.getParent() == null || !self.getParent().equals(old.getParent())
 				|| old.equals(self)) {
 			return;
+		}
+		// an update from the jar-and-bat installers (BETA 1.0 - 1.1.1): the release zip has no Run bat any more, so the old
+		// one next to us still names the old jar; point it at this one
+		Path bat = self.getParent().resolve(BAT);
+		try {
+			if (Files.isRegularFile(bat)) {
+				String text = Files.readString(bat);
+				if (text.contains(old.getFileName().toString())) {
+					Files.writeString(bat, text.replace(old.getFileName().toString(), self.getFileName().toString()));
+				}
+			}
+		} catch (IOException ignored) {
+			// it only starts the installer; the jar works on its own
 		}
 		Thread t = new Thread(() -> {
 			for (int i = 0; i < 40; i++) {

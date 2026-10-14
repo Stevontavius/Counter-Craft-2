@@ -46,7 +46,7 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 
 /**
- * Counter-Craft 2's installer (BETA 1.1.1): builds the asset pack from the player's own Counter-Strike 2 install (and
+ * Counter-Craft 2's installer (BETA 1.2): builds the asset pack from the player's own Counter-Strike 2 install (and
  * CS:GO's, for its weapon sounds) with the converter (converter/build_pack.py), or updates one by its manifest, then
  * installs the mod and the pack into one launcher's Counter-Craft 2 profile or instance (Install) and checks the result.
  * Pages: Welcome, Notices (agreed to before going on), Counter-Strike, Destination, Review, Progress, Finish; in the look
@@ -132,7 +132,10 @@ public final class CcInstaller extends JComponent {
 			Map.entry("Weapons, sounds, HUD", 1823), Map.entry("Weapon table", 10), Map.entry("Agents", 3760), Map.entry("Ragdolls", 25),
 			Map.entry("Agent eyes", 141), Map.entry("Death cam", 6), Map.entry("Map art", 19), Map.entry("Legacy weapon models", 133),
 			Map.entry("Weapon finishes", 4500), Map.entry("Glove finishes", 180), Map.entry("Music kits", 8), Map.entry("Shading maps", 495),
-			Map.entry("CS:GO weapon sounds", 42), Map.entry("manifest", 180));
+			Map.entry("CS:GO weapon sounds", 42), Map.entry("manifest", 180),
+			// an update's finishes: only those its new version changed, with their inputs re-extracted (measured: BETA 1.2's
+			// 18 Damascus knives, 91 s)
+			Map.entry("Weapon finishes (changed only)", 120));
 	private static final String[] BUILD_STEPS = {"CS2 weapon data", "Cosmetics catalog", "Weapons, sounds, HUD", "Weapon table", "Agents",
 			"Ragdolls", "Agent eyes", "Death cam", "Map art", "Legacy weapon models", "Weapon finishes", "Glove finishes", "Music kits",
 			"Shading maps"};
@@ -679,7 +682,7 @@ public final class CcInstaller extends JComponent {
 			text(g, selfUpdate, PAD + BW - 16 - tw(selfUpdate, STRONG), by + 21, ACCENT, STRONG);
 		} else if (can) {
 			button(g, bx, by, 200, 32, selfUpdate != null ? "TRY AGAIN" : "UPDATE INSTALLER", ACCENT, !running, this::updateInstaller,
-					"Download " + newer.zip() + (newer.size() > 0 ? " (" + Math.max(1, Math.round(newer.size() / 1e6)) + " MB)" : "") + " from GitHub.");
+					"Download " + newer.asset() + (newer.size() > 0 ? " (" + Math.max(1, Math.round(newer.size() / 1e6)) + " MB)" : "") + " from GitHub.");
 		} else {
 			button(g, bx, by, 200, 32, "OPEN RELEASES PAGE", ACCENT, true, () -> browse(newer.page()), newer.page());
 		}
@@ -1249,7 +1252,7 @@ public final class CcInstaller extends JComponent {
 					+ (out == null ? "" : out.resolve(Install.PACK)), dur(buildSeconds()));
 		} else if (mode == UPDATE) {
 			String what = updSteps == null ? "Checking what changed..." : updWhy != null ? "Built again in full: " + updWhy + "."
-					: updSteps.isEmpty() ? "Nothing changed: the pack is up to date." : "Reruns: " + String.join(", ", updSteps) + ".";
+					: updSteps.isEmpty() ? "Nothing changed: the pack is up to date." : "Only what changed: " + String.join(", ", updSteps) + ".";
 			y = planRow(g, y, n++, "Update the asset pack", what + "   ·   " + (built == null ? "" : built),
 					updSteps == null ? "..." : updSteps.isEmpty() && updWhy == null ? "no rebuild" : dur(buildSeconds()));
 		} else {
@@ -1776,7 +1779,9 @@ public final class CcInstaller extends JComponent {
 
 	private int buildSeconds() {
 		List<Step> s = packSteps();
-		return s.stream().mapToInt(Step::seconds).sum() + (s.isEmpty() ? 0 : MEASURED.get("manifest"));
+		// an update in place re-hashes only the files it changed: seconds, not the full manifest's minutes
+		int manifest = s.isEmpty() ? 0 : mode == UPDATE && updWhy == null ? 10 : MEASURED.get("manifest");
+		return s.stream().mapToInt(Step::seconds).sum() + manifest;
 	}
 
 	private int copySeconds(double gb) {

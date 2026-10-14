@@ -46,6 +46,8 @@ ALIAS = {"weapon_knife_survival_bowie": "weapon_knife_bowie", "weapon_knife_gyps
 THUMB_W = 192
 # pattern scale reference: the templates' default weapon length (inches) for a UV scale of 1
 REF_LENGTH = 32.0
+# paint styles whose pattern is projected from the side through the object-space position map (not laid on the UVs)
+PROJECTED = (2, 5)
 
 
 # ---------------------------------------------------------------- material data
@@ -274,7 +276,9 @@ def bake(target, p, want_spec=False):
     scale = float(p.get("g_flPatternTexCoordScale", 1.0) or 1.0)
     airbrushed = style == 5 and pos is not None
     if not int(p.get("g_bIgnoreWeaponSizeScale", 0) or 0) and not airbrushed:
-        scale *= target.get("uv_scale", 1.0) * target.get("length", REF_LENGTH) / REF_LENGTH
+        scale *= target.get("uv_scale", 1.0)
+        if not _damascus_knife(target.get("detail"), p):
+            scale *= target.get("length", REF_LENGTH) / REF_LENGTH
     # the pattern turns the other way from the angle's sign (matched on Doppler phases: phase 2 is pink-dominant, as in
     # CS2's images, only this way round)
     rot = -np.radians(float(p.get("g_flPatternTexCoordRotation", 0.0) or 0.0))
@@ -283,7 +287,7 @@ def bake(target, p, want_spec=False):
 
     t = (np.arange(RES, dtype=np.float32) + 0.5) / RES
     u, v = np.meshgrid(t, t)
-    if style in (2, 5) and pos is not None:
+    if style in PROJECTED and pos is not None:
         # spray / airbrushed: projected from the side through the object-space position map (length along y)
         u, v = np.clip(pos[..., 1], -1, 2), 1.0 - np.clip(pos[..., 2], -1, 2)
     if airbrushed:
@@ -430,13 +434,13 @@ def _glb_rough(glb_path, material):
     return None
 
 
-def targets(models, mats, log):
-    """Per item: the CS2 target (composite inputs) and the legacy target (CS:GO customization inputs)."""
+def targets(models, mats, log, custom):
+    """Per item: the CS2 target (composite inputs) and the legacy target (CS:GO customization inputs; custom: folder ->
+    the file names in materials/models/weapons/customization/<folder>/)."""
     comp = {}
     for name, (shader, p) in mats.items():
         if shader == "csgo_composite_inputs.vfx" and p.get("layer_name_1"):
             comp[str(p["layer_name_1"]).replace("\\", "/").lower()] = p
-    custom_dir = COS / "paints" / "materials" / "models" / "weapons" / "customization"
     out = {}
     for item, model in models.items():
         glb = next((EXTRACT / "cache" / "gltf").glob(model.replace(".vmdl_c", ".glb").replace(".vmdl", ".glb")), None)
@@ -452,7 +456,7 @@ def targets(models, mats, log):
                     if "v_models/" not in vpath:
                         continue
                     folder = vpath.split("v_models/")[1].split("/")[0]
-                    files = {f.name for f in (custom_dir / folder).glob("*")} if (custom_dir / folder).exists() else set()
+                    files = custom.get(folder, set())
 
                     def pick(kind):
                         f = next((x for x in sorted(files) if f"_{kind}_" in x), None)
@@ -475,7 +479,7 @@ def targets(models, mats, log):
         if "legacy" in t and "hd" in t:
             t["legacy"].setdefault("uv_scale", t["hd"]["uv_scale"])
             t["legacy"].setdefault("length", t["hd"]["length"])
-        if "knife" in item or "bayonet" in item:
+        if _knife(item):
             for w in t.values():
                 w["res"] = KNIFE_RES
                 w["detail"] = True
@@ -509,36 +513,102 @@ def bake_processes():
     return max(1, min(os.cpu_count() or 4, 6, int((total_gb - 8) // 5)))
 
 
-def convert(cs2, assets, log, models, threads=None, only=None, rebake=None):
-    """models: CS2 item name ("weapon_ak47") -> model path, for every gun and knife the mod has."""
+def ensure_inputs(cs2, log):
+    """What the finishes take from the cosmetics step, when an update runs this step on its own (a build deletes its
+    extraction): the catalog and the paint kits' composite materials (not their textures: export_textures takes the
+    ones a bake needs)."""
+    import cosmetics
+    if not (COS / "catalog.json").exists():
+        log("skins: reading the cosmetics catalog")
+        COS.mkdir(parents=True, exist_ok=True)
+        cat = cosmetics.catalog(cs2.vpk, cosmetics.listing(cs2.vpk))
+        (COS / "catalog.json").write_text(json.dumps(cosmetics.strip(cat), indent=1, ensure_ascii=False), encoding="utf-8")
+    if not (COS / "paints" / "weapons" / "paints").exists():
+        log("skins: exporting the paint kits' composite materials")
+        cosmetics.export(cs2.vpk, COS / "paints", "weapons/paints/", extra=("-e", "vcompmat_c"))
+
+
+def _customization(cs2):
+    """folder -> file names under materials/models/weapons/customization/<folder>/ (the CS:GO models' inputs), from the
+    VPK's listing."""
+    import cosmetics
+    prefix = "materials/models/weapons/customization/"
+    out = {}
+    for f in cosmetics.listing(cs2.vpk):
+        rest = f[len(prefix):] if f.startswith(prefix) else ""
+        if rest.count("/") == 1:
+            folder, name = rest.split("/")
+            out.setdefault(folder, set()).add(name)
+    return out
+
+
+def _knife(item):
+    return "knife" in item or "bayonet" in item
+
+
+def _damascus_knife(knife, p):
+    """Damascus Steel on a knife: its pattern at CS2's size, the weapon's UV scale alone. Matched on CS2's images: the
+    length factor in bake() (scale x uv x length / REF_LENGTH) blows patterns up 3-7x on knives and pistols (also
+    Karambit Crimson Web / Tiger Tooth, Glock Ocean Topo), but BETA 1.2 fixes only Damascus (the user's call: an update
+    rebakes just those). To fix the rest, widen this and add a CHANGED entry for them."""
+    return bool(knife) and "/damascus" in str(p.get("g_tPattern", "")).lower()
+
+
+# What each version of this step changed (build_pack.py's STEPS "skins"): an update rebakes only those finishes
+# (convert.py --step skins --since OLD:NEW), as (item, params) -> bool. A version missing here rebakes everything.
+CHANGED = {3: lambda item, p: _damascus_knife(_knife(item), p)}
+
+
+def rebake_since(old, new):
+    """Which finishes an update from version old to new rebakes: a test of (item, params), or None for all."""
+    if any(v not in CHANGED for v in range(old + 1, new + 1)):
+        return None
+    rules = [CHANGED[v] for v in range(old + 1, new + 1)]
+    return lambda item, p: any(r(item, p) for r in rules)
+
+
+def convert(cs2, assets, log, models, threads=None, only=None, rebake=None, export=None):
+    """models: CS2 item name ("weapon_ak47") -> model path, for every gun and knife the mod has. rebake: the finishes to
+    bake again, (item, params) -> bool, for an update: only they are touched (their models, textures and bakes), and the
+    index stays as it is; None bakes every finish and writes the index. export(model): make sure its glTF export is there
+    (an update runs this step without the base step's exports)."""
+    ensure_inputs(cs2, log)
     cat = json.loads((COS / "catalog.json").read_text(encoding="utf-8"))
     ensure_dumps(cs2, log)
     mats = load_materials()
     log(f"skins: {len(mats)} materials from the dumps")
-    tg = targets(models, mats, log)
     finishes = []
     for kind in ("weapons", "knives"):
         for f in cat["finishes"][kind]:
             f = dict(f, item=ALIAS.get(f["item"], f["item"]))
-            if f["item"] in tg and (not only or f["item"] in only):
-                finishes.append(f)
+            if f["item"] in models and (not only or f["item"] in only):
+                f["_params"] = finish_params(f["compositeMaterial"], mats) if f.get("compositeMaterial") else None
+                if rebake is None or f["_params"] is not None and rebake(f["item"], f["_params"]):
+                    finishes.append(f)
+    items = {f["item"]: models[f["item"]] for f in finishes}
+    if export:
+        for m in items.values():
+            export(m)
+    tg = targets(items, mats, log, _customization(cs2))
     jobs, need, index = [], set(), []
     for f in finishes:
-        p = finish_params(f["compositeMaterial"], mats) if f.get("compositeMaterial") else None
+        if f["item"] not in tg:
+            continue  # no model export (targets() said so)
+        p = f["_params"]
         which = "legacy" if f.get("legacyModel") else "hd"
         target = tg[f["item"]].get(which) or tg[f["item"]].get("hd")
         if p is None or target is None:
             log(f"  ! skins: {f['item']} {f['paintKit']}: no {'params' if p is None else 'target'}")
             continue
+        mod_id = f["item"][7:] if f["item"].startswith("weapon_") else f["item"]
+        jobs.append((target, p, assets / "textures" / "skins" / mod_id / f"{f['paintKit']}.png"))
         for k in ("color", "masks", "ao", "pos"):
             need.add(target.get(k))
         for k, v in p.items():
             if k.startswith("g_t") and isinstance(v, str) and v.endswith(".vtex"):
                 need.add(v)
-        mod_id = f["item"][7:] if f["item"].startswith("weapon_") else f["item"]
-        out = assets / "textures" / "skins" / mod_id / f"{f['paintKit']}.png"
-        if rebake is None or rebake(target, p):
-            jobs.append((target, p, out))
+        if rebake is not None:
+            continue  # an update: the index and thumbnails are as they were
         thumb = None
         src = COS / f["thumbnail"] if f.get("thumbnail") else None
         if src and src.exists():
@@ -563,6 +633,9 @@ def convert(cs2, assets, log, models, threads=None, only=None, rebake=None):
                 log(f"  {i + 1}/{len(jobs)}")
     for e in errors[:10]:
         log(f"  ! {e}")
+    if rebake is not None:
+        log(f"skins: rebaked {len(jobs)} finishes, {len(errors)} bake errors")
+        return
     items = {(k[7:] if k.startswith("weapon_") else k): {w: v["material"] for w, v in t.items()} for k, t in tg.items()}
     rar = {k: {"name": v["name"], "color": cat["colors"].get(v["color"], "#b0c3d9")} for k, v in cat["rarities"].items()}
     (assets / "skins").mkdir(parents=True, exist_ok=True)

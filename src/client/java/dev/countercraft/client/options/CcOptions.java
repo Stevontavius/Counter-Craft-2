@@ -41,6 +41,52 @@ public final class CcOptions {
 		}
 	}
 
+	/** HUD > Player List (Hardcore): how the list looks and where it goes (saved as one object, "player_list"). */
+	public static final class PlayerList {
+		public enum Side {
+			LEFT("Left"), RIGHT("Right");
+
+			public final String label;
+
+			Side(String label) {
+				this.label = label;
+			}
+		}
+
+		public enum Sort {
+			NAME("Name"), DISTANCE("Distance");
+
+			public final String label;
+
+			Sort(String label) {
+				this.label = label;
+			}
+		}
+
+		/** Left: under the money panel, above the paperdoll and chat. Right: under the effects and kill feed, above the CS hotbar. */
+		public Side side = Side.LEFT;
+		public Sort sort = Sort.NAME;
+		/** Text and faces, x the HUD's size (0.5 - 1.5). */
+		public float scale = 1f;
+		/** The background's opacity (0 - 1). */
+		public float opacity = 0.5f;
+		public boolean faces = true;
+		public boolean coordinates = true;
+		public boolean dimension = true;
+		/** How far each player is from you (same dimension only). */
+		public boolean distance;
+		/** Your own row. */
+		public boolean self = true;
+
+		private PlayerList fixed() {
+			side = side == null ? Side.LEFT : side;
+			sort = sort == null ? Sort.NAME : sort;
+			scale = Math.max(0.5f, Math.min(1.5f, scale));
+			opacity = Math.max(0f, Math.min(1f, opacity));
+			return this;
+		}
+	}
+
 	/** Video > Texture Quality: the largest side Counter-Craft's own textures load at (0: as they are in the pack). */
 	public enum TextureQuality {
 		LOW("Low (512 px)", 512), MEDIUM("Medium (1024 px)", 1024), HIGH("High (2048 px)", 2048), ULTRA("Ultra (original)", 0);
@@ -115,6 +161,9 @@ public final class CcOptions {
 	private static TextureQuality textureQuality = TextureQuality.HIGH;
 	private static Paperdoll paperdoll = Paperdoll.DISABLED;
 	private static boolean hotbarRarity;
+	private static boolean xray;
+	private static boolean teamList = true;
+	private static PlayerList playerList = new PlayerList();
 
 	private CcOptions() {
 	}
@@ -138,6 +187,11 @@ public final class CcOptions {
 				killFeed = !j.has("kill_feed") || j.get("kill_feed").getAsBoolean();
 				compass = !j.has("compass") || j.get("compass").getAsBoolean();
 				hotbarRarity = j.has("hotbar_rarity") && j.get("hotbar_rarity").getAsBoolean();
+				xray = j.has("xray") && j.get("xray").getAsBoolean();
+				teamList = !j.has("team_list") || j.get("team_list").getAsBoolean();
+				if (j.has("player_list")) {
+					playerList = GSON.fromJson(j.get("player_list"), PlayerList.class).fixed();
+				}
 				gpuAgents = !j.has("gpu_agents") || j.get("gpu_agents").getAsBoolean();
 				firstPersonLegs = !j.has("first_person_legs") || j.get("first_person_legs").getAsBoolean();
 				viewmodelShaders = !j.has("viewmodel_shaders") || j.get("viewmodel_shaders").getAsBoolean();
@@ -178,6 +232,9 @@ public final class CcOptions {
 			j.addProperty("kill_feed", killFeed);
 			j.addProperty("compass", compass);
 			j.addProperty("hotbar_rarity", hotbarRarity);
+			j.addProperty("xray", xray);
+			j.addProperty("team_list", teamList);
+			j.add("player_list", GSON.toJsonTree(playerList));
 			j.addProperty("gpu_agents", gpuAgents);
 			j.addProperty("first_person_legs", firstPersonLegs);
 			j.addProperty("viewmodel_shaders", viewmodelShaders);
@@ -266,6 +323,34 @@ public final class CcOptions {
 	public static void setHotbarRarity(boolean on) {
 		load();
 		hotbarRarity = on;
+	}
+
+	/** X-Ray while alive: teammates (everyone, in hardcore) drawn through walls in their team colour. Off by default. */
+	public static boolean xray() {
+		load();
+		return xray;
+	}
+
+	public static void setXray(boolean on) {
+		load();
+		xray = on;
+	}
+
+	/** Hardcore: the list of players with where they are (or DEAD), with their skin's face. On by default. */
+	public static boolean teamList() {
+		load();
+		return teamList;
+	}
+
+	public static void setTeamList(boolean on) {
+		load();
+		teamList = on;
+	}
+
+	/** The player list's settings: change the fields, then {@link #save()}. */
+	public static PlayerList playerList() {
+		load();
+		return playerList;
 	}
 
 	public static Paperdoll paperdoll() {

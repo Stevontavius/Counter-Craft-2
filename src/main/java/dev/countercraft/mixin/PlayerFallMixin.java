@@ -15,10 +15,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * CS2 fall damage for players on CS movement: (impact speed - 580) x 100 / 444 CS HP, from the fall height
- * (Minecraft's own threshold is 3 blocks; CS2's is 210 units = 5.3 blocks, lethal at 16.6).
+ * (Minecraft's own threshold is 3 blocks; CS2's is 210 units = 5.3 blocks, lethal at 16.6). Minecraft's own effects on a
+ * fall still count: Slow Falling takes none; extra safe fall distance (Jump Boost) is taken off the fall; the fall
+ * damage multiplier attribute scales it; Feather Falling and Protection reduce it as they do any fall (the damage goes
+ * through the usual armour and enchantments).
  */
 @Mixin(Player.class)
 abstract class PlayerFallMixin {
+	/** Minecraft's safe fall distance (the attribute's default): anything above it is a bonus, such as Jump Boost's. */
+	private static final double MINECRAFT_SAFE_FALL = 3.0;
+
 	@Inject(method = "causeFallDamage", at = @At("HEAD"), cancellable = true)
 	private void countercraft$csFallDamage(final double fallDistance, final float multiplier, final DamageSource source,
 			final CallbackInfoReturnable<Boolean> cir) {
@@ -26,7 +32,14 @@ abstract class PlayerFallMixin {
 		if (!(self.level() instanceof ServerLevel level) || !CsMove.enabled(self) || self.getAbilities().mayfly) {
 			return;
 		}
-		float damage = (float) (CsMove.fallDamage(fallDistance) * multiplier * Ballistics.CS_TO_MC);
+		if (self.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING)) {
+			cir.setReturnValue(false);
+			return;
+		}
+		double extraSafe = self.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.SAFE_FALL_DISTANCE) - MINECRAFT_SAFE_FALL;
+		double fall = Math.max(0, fallDistance - extraSafe);
+		float damage = (float) (CsMove.fallDamage(fall) * multiplier
+				* self.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.FALL_DAMAGE_MULTIPLIER) * Ballistics.CS_TO_MC);
 		if (damage > 0f) {
 			self.hurtServer(level, source, damage);
 			// CS2's Player.DamageFall

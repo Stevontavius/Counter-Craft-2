@@ -63,6 +63,8 @@ tasks.register("testEnv") {
 // and Fabric Loader's library list (for the Minecraft Launcher's version file) inside under bundle/
 sourceSets {
 	installer
+	// the BETA installer jar's entry point (Boot), built for Java 8 so whatever Java opens the jar finds a Java 25 for it
+	installerBoot
 }
 
 tasks.register("installerJar", Jar) {
@@ -83,13 +85,14 @@ tasks.register("installerJar", Jar) {
 	}
 }
 
-// `gradlew installerBeta`: the BETA 1.1.1 test build of the installer, in INSTALLERTESTBETA/ (installerJar and its jar stay as
+// `gradlew installerBeta`: the BETA 1.2 test build of the installer, in INSTALLERTESTBETA/ (installerJar and its jar stay as
 // they are): the same contents, its own folder and name
 tasks.register("installerBeta", Jar) {
 	notCompatibleWithConfigurationCache("bundles files from the runtime classpath")
 	destinationDirectory = file("INSTALLERTESTBETA")
-	archiveFileName = "CC2-Installer-BETA-1.1.1.jar"
+	archiveFileName = "CC2-Installer-Beta-1.2-Universal.jar" // the release's names: this, CC2-Installer-Beta-1.2-Windows.zip, CC2-Server-Beta-1.2.jar
 	from sourceSets.installer.output
+	from sourceSets.installerBoot.output
 	from("LICENSE") {
 		into "legal"
 	}
@@ -109,8 +112,34 @@ tasks.register("installerBeta", Jar) {
 		}
 	}
 	manifest {
-		attributes "Main-Class": "dev.countercraft.installer.CcInstaller", "Implementation-Version": "BETA 1.1.1"
+		attributes "Main-Class": "dev.countercraft.installer.Boot", "Implementation-Version": "BETA 1.2"
 	}
+}
+
+// `gradlew installerExe`: the BETA installer as a Windows app with its own Java, so it runs with a double-click on any PC
+// (no Java install, no .bat): jpackage's app image in INSTALLERTESTBETA/Counter-Craft 2 Installer/ (the exe with the CC2
+// icon, the installer jar under app/, a runtime trimmed to the three modules the installer uses). Zip that folder for a
+// release (CC2-Installer-Beta-x-Windows.zip); the installer's self-update keeps the exe and swaps the jar it runs (Updates.java).
+tasks.register("installerExe", Exec) {
+	notCompatibleWithConfigurationCache("runs jpackage on the installer jar")
+	dependsOn "installerBeta"
+	def appName = "Counter-Craft 2 Installer"
+	def input = file("build/jpackage")
+	def dest = file("INSTALLERTESTBETA")
+	def jarName = tasks.named("installerBeta").get().archiveFileName.get()
+	doFirst {
+		delete input, new File(dest, appName)
+		copy {
+			from tasks.named("installerBeta")
+			into input
+		}
+	}
+	executable "${System.getProperty('java.home')}/bin/jpackage"
+	args "--type", "app-image", "--name", appName, "--input", input, "--main-jar", jarName,
+			"--main-class", "dev.countercraft.installer.CcInstaller", "--icon", file("src/installer/packaging/cc2.ico"),
+			"--app-version", project.version, "--vendor", "Counter-Craft 2", "--dest", dest,
+			"--add-modules", "java.base,java.desktop,jdk.management",
+			"--jlink-options", "--strip-debug --no-header-files --no-man-pages --compress=zip-9"
 }
 
 dependencies {
@@ -134,7 +163,12 @@ processResources {
 	filesMatching("fabric.mod.json") { expand "version": version }
 }
 
-tasks.withType(JavaCompile).configureEach { it.options.release = 25 }
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = it.name == "compileInstallerBootJava" ? 8 : 25
+	if (it.name == "compileInstallerBootJava") {
+		it.options.compilerArgs << "-Xlint:-options" // Java 8 is "obsolete" to javac 25: on purpose here
+	}
+}
 
 java {
 	sourceCompatibility = JavaVersion.VERSION_25

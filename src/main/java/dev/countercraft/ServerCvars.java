@@ -29,6 +29,7 @@ import net.minecraft.world.level.storage.LevelResource;
  * <li>{@code mp_startmoney} / {@code mp_maxmoney}: CS2's economy (800 / 16000), survival and adventure only; creative
  * buys for free.</li>
  * <li>{@code sv_maxvelocity}: the speed cap of players and grenades (units/s, CS2 default 3500, up to 9999).</li>
+ * <li>{@code sv_airaccelerate}: air control, CS2's 12 by default, up to 500 (surf servers run 100 and more).</li>
  * <li>{@code mp_teamkill_ban} / {@code mp_teamdamage_ban}: Counter-Craft's permanent server ban after 5 team kills / 500
  * team damage (0: off; {@link dev.countercraft.team.FriendlyFire}).</li>
  * </ul>
@@ -49,6 +50,7 @@ public final class ServerCvars {
 		add("mp_maxmoney", 16000, 0, 65535);
 		add("sv_sellback_enabled", 1, 0, 1); // CS2's refunds (casual / competitive: 1)
 		add("sv_maxvelocity", 3500, 0, 9999);
+		add("sv_airaccelerate", 12, 0, 500); // air control (surfing); CS2's default 12
 		add("mp_teamkill_ban", 5, 0, 1000); // Counter-Craft's: team kills that ban a player from a server for good (0: off)
 		add("mp_teamdamage_ban", 500, 0, 100000); // team damage (CS2 health) that does (0: off); see FriendlyFire
 	}
@@ -79,13 +81,13 @@ public final class ServerCvars {
 	private static void set(String name, int value) {
 		Cvar c = CVARS.get(name);
 		VALUES.put(name, Math.max(c.min(), Math.min(c.max(), value)));
-		infiniteAmmo = get("sv_infinite_ammo");
-		dev.countercraft.movement.CsMove.maxVelocity = get("sv_maxvelocity");
+		mirror();
 	}
 
 	private static void mirror() {
 		infiniteAmmo = get("sv_infinite_ammo");
 		dev.countercraft.movement.CsMove.maxVelocity = get("sv_maxvelocity");
+		dev.countercraft.movement.CsMove.airAccelerate = get("sv_airaccelerate");
 	}
 
 	/** World loaded: its cvars (CS2 defaults for a new world). */
@@ -139,7 +141,7 @@ public final class ServerCvars {
 
 	public static void send(ServerPlayer player) {
 		if (ServerPlayNetworking.canSend(player, CvarsPayload.TYPE)) {
-			ServerPlayNetworking.send(player, new CvarsPayload(infiniteAmmo, get("sv_maxvelocity")));
+			ServerPlayNetworking.send(player, new CvarsPayload(infiniteAmmo, get("sv_maxvelocity"), get("sv_airaccelerate")));
 		}
 	}
 

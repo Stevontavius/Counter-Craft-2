@@ -113,7 +113,9 @@ public final class AgentRenderer {
 				Identifier[] m = shaded ? dev.countercraft.client.viewmodel.ViewmodelRenderer.mapsOf(part.texture()) : NO_MAPS;
 				dev.countercraft.client.gpu.GpuAgents.draw(part.pos(), part.nrm(), part.uv(), part.joints(), part.weights(), part.vertexCount(), idx,
 						tex, block, m[0], m[1]);
-				continue;
+				if (outline == 0) {
+					continue;
+				}
 			}
 			float[][] out = skinned.computeIfAbsent(part, k -> new float[][] {new float[k.vertexCount() * 3], new float[k.vertexCount() * 3]});
 			skinPart(part.vertexCount(), part.pos(), part.nrm(), part.joints(), part.weights(), skin, out[0], out[1]);
@@ -121,8 +123,11 @@ public final class AgentRenderer {
 			float[] nrm = out[1];
 			// the cut-open first-person body shows its inside through the cut: draw both sides there
 			boolean cull = hidden == null;
-			collector.submitCustomGeometry(ps, RenderTypes.entityCutout(tex),
-					(p, vc) -> FastMesh.emit(idx, part.uv(), pos, nrm, part.vertexCount(), null, p, vc, light, overlay, cull));
+			if (block == null) {
+				collector.submitCustomGeometry(ps, RenderTypes.entityCutout(tex),
+						(p, vc) -> FastMesh.emit(idx, part.uv(), pos, nrm, part.vertexCount(), null, p, vc, light, overlay, cull));
+			}
+			outline(ps, collector, tex, idx, part.uv(), pos, nrm, part.vertexCount(), null, cull);
 		}
 		if (!legsOnly && gunId != null) {
 			submitGun(data, anim, gunId, ps, collector, light, overlay);
@@ -147,6 +152,29 @@ public final class AgentRenderer {
 
 	/** Equipped gloves (null: the agent's own), set before each submit like {@link #finish}. */
 	public dev.countercraft.client.skins.Skins.Glove glove;
+	/**
+	 * Minecraft's glow colour for this player (ARGB; 0: none), set before each submit: the Glowing effect, a spectral
+	 * arrow, the X-Ray. The agent's own mesh (body, gloves, gun) goes into Minecraft's outline pass in it, so the glow
+	 * has the agent's shape.
+	 */
+	public int outline;
+
+	/** The mesh into the outline pass in {@link #outline}, if there is one. */
+	private void outline(PoseStack ps, SubmitNodeCollector collector, Identifier tex, int[] idx, float[] uv, float[] pos, float[] nrm, int vertexCount,
+			float[] pre, boolean cull) {
+		int color = outline;
+		if (color == 0) {
+			return;
+		}
+		collector.submitCustomGeometry(ps, RenderTypes.outline(tex), (p, vc) -> {
+			FastMesh.color = color;
+			try {
+				FastMesh.emit(idx, uv, pos, nrm, vertexCount, pre, p, vc, 0xF000F0, 0, cull);
+			} finally {
+				FastMesh.color = 0xFFFFFFFF;
+			}
+		});
+	}
 	/** Every part drawn with this texture instead of its own (the glove model in a finish), or null. */
 	private Identifier retexture;
 
@@ -237,9 +265,12 @@ public final class AgentRenderer {
 	/**
 	 * A Minecraft item in the agent's right hand: placed in the frame vanilla puts held items in (an arm frame with Y
 	 * along the arm toward the hand and -Z forward), here built from the forearm and the grip (wpn) direction, so the
-	 * item's own third-person display transform applies as usual.
+	 * item's own third-person display transform applies as usual. A spear is held along the aim, gripped on its shaft.
+	 * With the player's render state ({@code state}, null for the menu previews), Minecraft's own item motion plays on
+	 * top, as its ItemInHandLayer does: the spear's jab and its charge.
 	 */
-	public void submitItem(AgentData data, AgentAnimator anim, net.minecraft.client.renderer.item.ItemStackRenderState item, PoseStack ps,
+	public void submitItem(AgentData data, AgentAnimator anim, net.minecraft.client.renderer.item.ItemStackRenderState item,
+			net.minecraft.world.item.ItemStack stack, net.minecraft.client.renderer.entity.state.ArmedEntityRenderState state, PoseStack ps,
 			SubmitNodeCollector collector, int light, int overlay, int outline, String knife) {
 		AgentSkeleton skel = data.skeleton();
 		int lower = skel.index("arm_lower_R");
@@ -273,8 +304,9 @@ public final class AgentRenderer {
 				hx - ax * ARM_LENGTH, hy - ay * ARM_LENGTH, hz - az * ARM_LENGTH, 1f);
 		// held like the default knife: solved so the item's handle sits in the fist, its blade along the knife's blade and
 		// its flat side the knife's, through CS2's knife animations (the knife rides the agent's weapon bone)
-		float[] knifeAxes = knife == null ? null : knifeBlade(data, anim, knife);
-		org.joml.Matrix4f held = knifeAxes == null ? null : heldLikeKnife(item, knifeAxes, hx, hy, hz);
+		boolean spear = stack.is(net.minecraft.tags.ItemTags.SPEARS);
+		float[] knifeAxes = spear ? spearAxes(anim) : knife == null ? null : knifeBlade(data, anim, knife);
+		org.joml.Matrix4f held = knifeAxes == null ? null : heldLike(item, knifeAxes, spear ? SPEAR_GRIP : ITEM_GRIP, hx, hy, hz);
 		if (held != null) {
 			frame = held;
 		}
@@ -287,8 +319,30 @@ public final class AgentRenderer {
 		ps.rotate(Axis.XP.rotationDegrees(-90f));
 		ps.rotate(Axis.YP.rotationDegrees(180f));
 		ps.translate(1f / 16f, 0.125f, -0.625f);
+		if (state != null) {
+			var swing = state.currentSwing;
+			if (swing != null && swing.hand().asArm(state.mainArm) == net.minecraft.world.entity.HumanoidArm.RIGHT
+					&& swing.animation().type() == net.minecraft.world.item.SwingAnimationType.STAB) {
+				net.minecraft.client.model.effects.SpearAnimations.thirdPersonAttackItem(state, ps);
+			}
+			float ticks = state.ticksUsingItem(net.minecraft.world.entity.HumanoidArm.RIGHT);
+			if (ticks != 0f) {
+				state.rightArmPose.animateUseItem(state, ps, ticks, net.minecraft.world.entity.HumanoidArm.RIGHT, state.rightHandItemStack);
+			}
+		}
 		item.submit(ps, collector, light, overlay, outline);
 		ps.popPose();
+	}
+
+	/** Where a spear is gripped in its sprite: on the shaft, a third of the way from the butt (the head runs to the top right). */
+	private static final org.joml.Vector3f SPEAR_GRIP = new org.joml.Vector3f(5.5f / 16f, 5.5f / 16f, 0.5f);
+
+	/** A spear's axes for {@link #heldLike}: its point along the aim, its flat side facing sideways (agent model space). */
+	private static float[] spearAxes(AgentAnimator anim) {
+		double yaw = Math.toRadians(anim.aimYaw());
+		double pitch = Math.toRadians(anim.aimPitch());
+		return new float[] {(float) (Math.sin(yaw) * Math.cos(pitch)), (float) Math.sin(pitch), (float) (Math.cos(yaw) * Math.cos(pitch)),
+				(float) Math.cos(yaw), 0f, (float) -Math.sin(yaw)};
 	}
 
 	/**
@@ -300,12 +354,13 @@ public final class AgentRenderer {
 	private static final org.joml.Vector3f ITEM_FLAT = new org.joml.Vector3f(0f, 0f, 1f);
 
 	/**
-	 * The arm frame (as {@link #submitItem} uses it) that puts {@code item}'s handle in the hand at (hx, hy, hz) with its
-	 * blade along the knife's blade and its flat side the knife's: everything after the frame (vanilla's hand offset, the
-	 * item model's own display transform) is fixed and known, so the frame is solved for, not guessed.
+	 * The arm frame (as {@link #submitItem} uses it) that puts {@code item}'s grip point ({@code gripAt}, in its model) in
+	 * the hand at (hx, hy, hz) with its blade along {@code knife}'s blade and its flat side the knife's: everything after
+	 * the frame (vanilla's hand offset, the item model's own display transform) is fixed and known, so the frame is solved
+	 * for, not guessed.
 	 */
-	private static org.joml.Matrix4f heldLikeKnife(net.minecraft.client.renderer.item.ItemStackRenderState item, float[] knife, float hx, float hy,
-			float hz) {
+	private static org.joml.Matrix4f heldLike(net.minecraft.client.renderer.item.ItemStackRenderState item, float[] knife, org.joml.Vector3f gripAt,
+			float hx, float hy, float hz) {
 		var layers = (dev.countercraft.client.mixin.ItemStackRenderStateAccessor) item;
 		if (layers.countercraft$activeLayerCount() <= 0) {
 			return null;
@@ -338,7 +393,7 @@ public final class AgentRenderer {
 		org.joml.Matrix3f lin = to.mul(from.transpose()).mul(rc.transpose());
 		org.joml.Matrix4f frame = new org.joml.Matrix4f().set(lin);
 		// and where the handle lands: on the hand
-		org.joml.Vector3f grip = frame.transformPosition(after.transformPosition(new org.joml.Vector3f(ITEM_GRIP)));
+		org.joml.Vector3f grip = frame.transformPosition(after.transformPosition(new org.joml.Vector3f(gripAt)));
 		frame.setTranslation(hx - grip.x, hy - grip.y, hz - grip.z);
 		return frame;
 	}
@@ -560,6 +615,7 @@ public final class AgentRenderer {
 								twoHanded == null ? null : part.weights(), part.vertexCount(), part.indices(), part.texture(), block, m[0], m[1]);
 					}
 				}
+				outlineGun(asset, gunId, offset, place, ps, collector);
 				return;
 			}
 		}
@@ -575,6 +631,19 @@ public final class AgentRenderer {
 			MeshLod.Lod lod = MeshLod.of(part.indices(), part.pos(), part.nrm(), part.uv(), part.vertexCount(), level);
 			collector.submitCustomGeometry(ps, RenderTypes.entityCutout(tex),
 					(p, vc) -> FastMesh.emit(lod.indices(), lod.used(), part.uv(), part.pos(), part.nrm(), part.vertexCount(), place, p, vc, light, overlay, true));
+		}
+		outlineGun(asset, gunId, offset, place, ps, collector);
+	}
+
+	/** The held gun into the outline pass ({@link #outline}), rigid at its placement on the hand. */
+	private void outlineGun(ViewmodelAsset asset, String gunId, int offset, float[] place, PoseStack ps, SubmitNodeCollector collector) {
+		if (outline == 0) {
+			return;
+		}
+		for (ViewmodelAsset.Part part : dev.countercraft.client.skins.Skins.gunParts(asset, gunId, finish)) {
+			if (part.vertexCount() > 0 && Byte.toUnsignedInt(part.joints()[0]) >= offset) {
+				outline(ps, collector, part.texture(), part.indices(), part.uv(), part.pos(), part.nrm(), part.vertexCount(), place, true);
+			}
 		}
 	}
 

@@ -57,6 +57,7 @@ public final class MoneyHud {
 			CsUi.text(g, d, x + w + 20 * k, y + 4 * k, 20, h, a << 24 | (delta > 0 ? 0x7ED37E : 0xE05050), -1);
 		}
 		hotbarHint(g, x, y + 40 * k, k, h, CsInventory.active(p));
+		HudSpace.mark(HudSpace.Panel.MONEY, 18 * k, GunKeys.CS_MODE.isUnbound() ? y + 30 * k : y + 58 * k);
 	}
 
 	/** "Press [Left Alt] to switch to [Minecraft] Hotbar", under the money (hidden while the key is unbound). */

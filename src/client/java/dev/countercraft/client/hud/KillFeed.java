@@ -99,6 +99,7 @@ public final class KillFeed {
 			y += 3 + row(g, mc.font, n, screenW - 10, y, alpha);
 		}
 		pose.popMatrix();
+		HudSpace.mark(HudSpace.Panel.KILL_FEED, 72 * k, y * k);
 	}
 
 	private static float life(Notice n) {

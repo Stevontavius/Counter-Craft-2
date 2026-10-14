@@ -51,6 +51,7 @@ public final class VitalsHud {
 		float icon = ICON * k;
 		float x = MARGIN * k;
 		float y = h - MARGIN * k - icon;
+		HudSpace.mark(HudSpace.Panel.VITALS, y, y + icon);
 		float textY = y + (icon - TEXT * k * 0.8f) / 2;
 
 		// health

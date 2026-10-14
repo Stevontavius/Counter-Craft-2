@@ -15,12 +15,12 @@ games' Steam builds, the options, and every file with its size, SHA-256 and the 
 the pack before and after each step). It's what updates work from:
 
   --update     compare the pack's manifest with this release (each step's conversion version in STEPS, the options):
-               nothing changed, nothing is built; anything changed, the pack is built again in full, next to the old
-               one (.cc2-next), and swapped in only once it validates, so the old pack keeps working until then and an
-               interrupted update leaves it as it was (and is simply run again).
-               ponytail: always in full, because the steps share extracted files that a build deletes (the skins step
-               reads the base step's model exports and the cosmetics catalog); make each step fetch what it needs and
-               an update could rerun only the steps that changed (the manifest already records which step made each file).
+               nothing changed, nothing is built. Only steps that can run on their own changed (PARTIAL: the weapon
+               finishes, the weapon table): just those rerun, in place, after the steps that remake what they read, and
+               the finishes step rebakes only the finishes its new version changed (minutes, not hours); an interrupted
+               update leaves those steps at their old version, so it simply runs again. Anything else changed (or the
+               options, or the pack has no manifest): the pack is built again in full, next to the old one (.cc2-next),
+               and swapped in only once it validates.
   --manifest   write the manifest for a pack built before manifests existed.
 
 A build in progress is marked by .cc2-build.json in the pack; the manifest is written (atomically) only when the build has
@@ -49,7 +49,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 VRF = ROOT / "tools" / "vrf" / "Source2Viewer-CLI.exe"
 PACK = "CounterCraft-CS2-Assets"
-RELEASE = "BETA 1.1.1"
+RELEASE = "BETA 1.2"
 OPTIONAL = ("skins", "gloves", "musickits")
 MANIFEST = "cc2-manifest.json"
 MANIFEST_FORMAT = 1
@@ -66,7 +66,7 @@ STEPS = {
     "deathcam": ("Death cam", 1, False),
     "maps": ("Map art", 1, False),
     "legacy": ("Legacy weapon models", 1, False),
-    "skins": ("Weapon finishes", 2, False),  # 2: the material dumps are made by the step (a fresh build had none)
+    "skins": ("Weapon finishes", 3, False),  # 3: Damascus Steel knives at CS2's pattern size (skins.CHANGED: an update rebakes those)
     "gloves": ("Glove finishes", 2, False),
     "musickits": ("Music kits", 1, False),
     "vmmaps": ("Shading maps", 1, False),
@@ -199,17 +199,31 @@ def write_manifest(pack, args, owners, old=None):
     return manifest
 
 
+# Steps an update can rerun on their own, in place on the pack, with the steps that remake what they read first (a build
+# deletes its extraction). A change to any other step (base wipes the pack; the rest read the whole cosmetics export)
+# builds the pack again in full. The finishes step bakes only the finishes its new version changed (skins.CHANGED).
+PARTIAL = {"weapondata": (), "weapontable": ("weapondata",), "skins": ("weapondata",)}
+
+
 def to_rerun(old, args):
-    """What an update has to build (all the steps, or none) and why."""
+    """What an update has to build, why it builds in full (None: it doesn't), and whether only the changed steps rerun."""
     steps = [s for s, _ in plan(args)]
     if not old or old.get("format") != MANIFEST_FORMAT:
-        return steps, "the pack has no manifest"
+        return steps, "the pack has no manifest", False
     if old.get("options") != {"audio": args.audio, "skip": sorted(args.skip or [])}:
-        return steps, "the options changed"
+        return steps, "the options changed", False
     changed = [s for s in steps if old.get("steps", {}).get(s, {}).get("version") != STEPS[s][1]]
-    if changed:
-        return steps, "this release changed " + ", ".join(STEPS[s][0] for s in changed)
-    return [], None
+    if not changed:
+        return [], None, False
+    if all(s in PARTIAL for s in changed):
+        need = set(changed) | {d for s in changed for d in PARTIAL[s]}
+        return [s for s in steps if s in need], None, True
+    return steps, "this release changed " + ", ".join(STEPS[s][0] for s in changed), False
+
+
+def label(step, partial):
+    """A step's name for the installer (its time estimate goes by it)."""
+    return STEPS[step][0] + (" (changed only)" if partial and step == "skins" else "")
 
 
 def swap(out, staged):
@@ -272,17 +286,22 @@ def main():
             old = json.loads((pack / MANIFEST).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             old = None
-    ids, why = to_rerun(old, args) if args.update else ([s for s, _ in plan(args)], None)
+    ids, why, partial = to_rerun(old, args) if args.update else ([s for s, _ in plan(args)], None, False)
     if args.update:
-        print("update: " + (f"full build ({why})" if why else "nothing changed"), flush=True)
-        if ids and (pack / MANIFEST).exists():  # build next to the old pack and swap it in at the end
+        changed = ", ".join(STEPS[s][0] for s in ids if old["steps"].get(s, {}).get("version") != STEPS[s][1]) if partial else ""
+        print("update: " + (f"full build ({why})" if why else f"only what changed ({changed})" if ids else "nothing changed"), flush=True)
+        if ids and not partial and (pack / MANIFEST).exists():  # build next to the old pack and swap it in at the end
             final_out, args.out = args.out, args.out / ".cc2-next"
             shutil.rmtree(args.out, ignore_errors=True)
             pack = args.out / PACK
     steps = [(s, cmd) for s, cmd in plan(args) if s in ids]
+    if partial:
+        # in place, on the pack as it is; the finishes step bakes only what its new version changed
+        steps = [(s, cmd + ["--since", f"{old['steps'][s]['version']}:{STEPS[s][1]}"] if s == "skins" and s in old["steps"] else cmd)
+                 for s, cmd in steps]
     if args.dry_run:
         for i, (s, cmd) in enumerate(steps, 1):
-            print(f"{i}/{len(steps)} {STEPS[s][0]}: {' '.join(cmd)}")
+            print(f"{i}/{len(steps)} {label(s, partial)}: {' '.join(cmd)}")
         return 0
     if not steps:
         say("OK", f"the pack is up to date: {pack}")
@@ -295,7 +314,7 @@ def main():
     owners = {}
     try:
         for i, (s, cmd) in enumerate(steps, 1):
-            say("STEP", f"{i}/{len(steps)} {STEPS[s][0]}")
+            say("STEP", f"{i}/{len(steps)} {label(s, partial)}")
             t0 = time.time()
             before = snapshot(pack)
             full_cmd = [str(VRF), *cmd[1:]] if cmd[0] == "@vrf" else [sys.executable, *cmd]
@@ -322,7 +341,8 @@ def main():
             say("FAIL", "pack incomplete: " + "; ".join(problems))
             return 1
         print("writing the pack's manifest...", flush=True)
-        m = write_manifest(pack, args, owners)
+        # in place: files no step touched keep their hash and step from the old manifest
+        m = write_manifest(pack, args, owners, old if partial else None)
         (pack / MARK).unlink(missing_ok=True)
         if args.out.name == ".cc2-next":
             swap(final_out, args.out)

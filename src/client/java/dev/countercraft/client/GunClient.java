@@ -373,21 +373,23 @@ public final class GunClient {
 		boolean hit = false;
 		boolean back = false;
 		int backId = -1;
+		int targetId = -1;
 		if (mc.hitResult instanceof EntityHitResult eh && Ballistics.hittable(eh.getEntity(), mc.player)) {
 			boolean player = Ballistics.owner(eh.getEntity()) instanceof net.minecraft.world.entity.player.Player;
 			// the server's reach: CS2's against players, longer against mobs
 			double reach = player ? (stab ? KnifeItem.STAB_RANGE : KnifeItem.SLASH_RANGE) : (stab ? KnifeItem.STAB_RANGE_MOB : KnifeItem.SLASH_RANGE_MOB);
 			if (mc.player.getEyePosition().distanceTo(eh.getLocation()) <= reach) {
 				hit = true;
+				targetId = eh.getEntity().getId();
 				// the same test as the server: the backstab rule for players, the back hitbox zone for mobs
 				back = Ballistics.owner(eh.getEntity()) instanceof LivingEntity target
 						&& (player ? KnifeItem.backstab(mc.player, target) : KnifeItem.backZone(mc.player, target, eh.getLocation()));
 				backId = back ? Ballistics.owner(eh.getEntity()).getId() : -1;
 			}
 		}
-		// the swing: its packet is marked (fresh) and carries what the animation shows (a backstab), so the server swings
-		// with it and the damage matches what you saw (the server's own test sees the target a moment later)
-		ClientPlayNetworking.send(new FirePayload(stab, true, motion(mc.player), backId));
+		// the swing: its packet is marked (fresh) and carries what the animation shows (what it hit, a backstab), so the
+		// server swings with it and the damage matches what you saw (the server's own test sees the target a moment later)
+		ClientPlayNetworking.send(new FirePayload(stab, true, motion(mc.player), targetId, backId));
 		boolean anim = animator != null;
 		String role;
 		if (stab) {

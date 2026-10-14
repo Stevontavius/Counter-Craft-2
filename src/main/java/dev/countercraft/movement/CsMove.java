@@ -16,7 +16,9 @@ public final class CsMove {
 	public static final double TICK = 1 / 64.0;
 
 	public static final double ACCELERATE = 5.5;          // sv_accelerate
-	public static final double AIR_ACCELERATE = 12;       // sv_airaccelerate
+	public static final double AIR_ACCELERATE = 12;       // sv_airaccelerate default
+	/** The world's sv_airaccelerate (server: ServerCvars; client: CvarsPayload); surf servers raise it. */
+	public static volatile double airAccelerate = AIR_ACCELERATE;
 	public static final double AIR_MAX_WISHSPEED = 30;    // sv_air_max_wishspeed
 	public static final double FRICTION = 5.2;            // sv_friction
 	public static final double STOP_SPEED = 80;           // sv_stopspeed

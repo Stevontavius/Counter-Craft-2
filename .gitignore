@@ -69,3 +69,4 @@ CC2 Installer.bat
 release/
 __pycache__/
 *.pyc
+/logs/

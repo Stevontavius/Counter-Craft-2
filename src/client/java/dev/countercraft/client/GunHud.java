@@ -161,14 +161,14 @@ public final class GunHud {
 	}
 
 	private static final net.minecraft.resources.Identifier SCOPE_CIRCLE = CounterCraft.id("textures/hud/scope_circle.png");
-	private static final net.minecraft.resources.Identifier SCOPE_LENS = CounterCraft.id("textures/hud/scope_lens.png");
 	private static final net.minecraft.resources.Identifier SCOPE_LINE = CounterCraft.id("textures/hud/scope_line_blur.png");
 	/** CS2's scope circle: 0.85 of the screen height (measured on a 2560x1440 capture of the AWP scope). */
 	private static final float SCOPE_DIAMETER = 0.85f;
 
 	/**
-	 * CS2's scope overlay with its own HUD textures (panorama/images/hud/scope, converted into the pack): the lens
-	 * (dirt and dark rim) and the soft circle mask, black outside; cross hairs across the lens only. Standing still the
+	 * CS2's scope overlay with its own HUD textures (panorama/images/hud/scope, converted into the pack): the soft circle
+	 * mask, black outside; cross hairs across the lens only. CS2's lens texture (a brown film with dirt and scratches,
+	 * scope_lens.png, still in the pack) isn't drawn: a clean view, the user's choice. Standing still the
 	 * lines are 1 px, 82% dark; moving they spread into blurred bands whose width follows the movement inaccuracy (measured:
 	 * ~60 px, 31% dark at 1440p walking with the AWP), darkness 0.82 x (2 / width)^0.3 between those two points.
 	 */
@@ -186,7 +186,6 @@ public final class GunHud {
 		int y0 = (h - d) / 2;
 		int black = 0xFF000000;
 		var gui = net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED;
-		g.blit(gui, SCOPE_LENS, x0, y0, 0f, 0f, d, d, 512, 512, 512, 512);
 		g.blit(gui, SCOPE_CIRCLE, x0, y0, 0f, 0f, d, d, 512, 512, 512, 512);
 		g.fill(0, 0, x0, h, black);
 		g.fill(x0 + d, 0, w, h, black);

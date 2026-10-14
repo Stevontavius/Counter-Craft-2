@@ -144,6 +144,7 @@ public final class CsPlayerMovement {
 		boolean crouching = in.shift() || p.isCrouching(); // stays down under a low ceiling, like Minecraft's pose
 		double maxSpeed = maxSpeed(p);
 		float yaw = (float) Math.toRadians(p.getYRot());
+		effects(p);
 
 		Vec3 start = p.position();
 		duckOld = duck;
@@ -163,6 +164,69 @@ public final class CsPlayerMovement {
 		p.setDeltaMovement(moved);
 		p.setSprinting(false);
 		p.calculateEntityAnimation(false);
+	}
+
+	/** Minecraft's player defaults the effects are measured against: jump strength, gravity, sneaking speed. */
+	private static final double VANILLA_JUMP = 0.42;
+	private static final double VANILLA_GRAVITY = 0.08;
+	private static final double VANILLA_SNEAK = 0.3;
+	/**
+	 * This tick's Minecraft effects on the CS movement, each against Minecraft's normal (1 = no effect): speed (Speed,
+	 * Slowness and any other speed modifier, the block underfoot: soul sand, honey; Soul Speed), jump (Jump Boost, a honey
+	 * block, the jump strength attribute), gravity (the gravity attribute; Slow Falling while falling), crouched speed
+	 * (Swift Sneak); and Levitation's rise in units/s (negative: none).
+	 */
+	private static double speedScale = 1;
+	private static double jumpScale = 1;
+	private static double gravityScale = 1;
+	private static double sneakScale = 1;
+	private static double levitation = -1;
+
+	private static void effects(LocalPlayer p) {
+		var inv = (dev.countercraft.client.mixin.LivingEntityMovementInvoker) p;
+		speedScale = speedAttributeScale(p) * inv.countercraft$blockSpeedFactor();
+		jumpScale = Math.max(0, inv.countercraft$jumpPower() / VANILLA_JUMP);
+		sneakScale = p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.SNEAKING_SPEED) / VANILLA_SNEAK;
+		var lev = p.getEffect(net.minecraft.world.effect.MobEffects.LEVITATION);
+		levitation = lev == null ? -1 : (lev.getAmplifier() + 1) * 0.05 * 20 * CsMove.UNITS_PER_BLOCK;
+		double g = p.getGravity();
+		if (vel.y <= 0 && p.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING)) {
+			g = Math.min(g, 0.01); // Minecraft's slow fall, and no fall damage
+			p.resetFallDistance();
+		}
+		gravityScale = g / VANILLA_GRAVITY;
+	}
+
+	/**
+	 * Movement speed against the player's base (Speed / Slowness, Soul Speed, other mods' modifiers), worked out as
+	 * Minecraft does but without Counter-Craft's own weapon and scope modifiers: CS movement's max speed already is the
+	 * weapon's.
+	 */
+	static double speedAttributeScale(LocalPlayer p) {
+		var a = p.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+		if (a == null || a.getBaseValue() <= 0) {
+			return 1;
+		}
+		double base = a.getBaseValue();
+		double v = base;
+		var mods = a.getModifiers().stream().filter(m -> !m.id().getNamespace().equals(CounterCraft.MOD_ID)).toList();
+		for (var m : mods) {
+			if (m.operation() == net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE) {
+				v += m.amount();
+			}
+		}
+		double total = v;
+		for (var m : mods) {
+			if (m.operation() == net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_BASE) {
+				total += v * m.amount();
+			}
+		}
+		for (var m : mods) {
+			if (m.operation() == net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL) {
+				total *= 1 + m.amount();
+			}
+		}
+		return Math.max(0, total / base);
 	}
 
 	/** Leaving CS movement (water, ladder, flying...): vanilla takes over with the current motion. */
@@ -281,8 +345,8 @@ public final class CsPlayerMovement {
 			p.move(MoverType.SELF, new Vec3(0, (duck - before) * CsMove.AIR_DUCK_LIFT / CsMove.UNITS_PER_BLOCK, 0));
 		}
 		double speedMul = walking ? CsMove.WALK_MULTIPLIER : 1.0;
-		speedMul += (CsMove.DUCK_MULTIPLIER - speedMul) * duck;
-		double cap = maxSpeed * speedMul;
+		speedMul += (Math.min(1.0, CsMove.DUCK_MULTIPLIER * sneakScale) - speedMul) * duck;
+		double cap = maxSpeed * speedMul * speedScale;
 		double surface = surfaceFriction(p);
 
 		boolean jumped = false;
@@ -292,9 +356,9 @@ public final class CsPlayerMovement {
 			double since = Math.max(0, clock - lastLand - CsMove.TICK);
 			double mul = Math.min(1.0, 1.0 - CsMove.BHOP_PENALTY * landSpeed / CsMove.JUMP_IMPULSE + CsMove.BHOP_RECOVERY * since);
 			double h = Math.hypot(vel.x, vel.z);
-			double limit = CsMove.BHOP_SPEED_CAP * maxSpeed;
+			double limit = CsMove.BHOP_SPEED_CAP * maxSpeed * speedScale;
 			Vec3 hv = !MovementSettings.enableBhop && h > limit ? new Vec3(vel.x * limit / h, 0, vel.z * limit / h) : new Vec3(vel.x, 0, vel.z);
-			vel = new Vec3(hv.x, CsMove.JUMP_TAKEOFF * mul, hv.z);
+			vel = new Vec3(hv.x, CsMove.JUMP_TAKEOFF * mul * jumpScale, hv.z);
 			lastJumpMul = mul;
 			onGround = false;
 			jumped = true;
@@ -318,22 +382,27 @@ public final class CsPlayerMovement {
 		if (onGround) {
 			// sv_accelerate_use_weapon_speed: walking / crouching accelerate like the knife does, running at the
 			// weapon's speed (measured: AK walk and knife walk gain the same 4.65 u/s per tick)
-			double scale = walking || duck > 0.5 ? CsMove.RUN_SPEED * speedMul : cap;
+			double scale = walking || duck > 0.5 ? CsMove.RUN_SPEED * speedMul * speedScale : cap;
 			accelerate(dx, dz, wishSpeed, CsMove.ACCELERATE * scale * dt * surface);
 			vel = new Vec3(vel.x, 0, vel.z);
 		} else {
 			double add = Math.min(wishSpeed, CsMove.AIR_MAX_WISHSPEED) - (vel.x * dx + vel.z * dz);
 			if (add > 0 && wishSpeed > 0) {
-				double a = Math.min(add, CsMove.AIR_ACCELERATE * wishSpeed * dt * surface);
+				double a = Math.min(add, CsMove.airAccelerate * wishSpeed * dt * surface);
 				vel = vel.add(a * dx, 0, a * dz);
 			}
 		}
 		vel = new Vec3(clamp(vel.x), clamp(vel.y), clamp(vel.z));
 
-		// move: exact free fall within the step (Source's half-step gravity), collisions by Minecraft
+		// move: exact free fall within the step (Source's half-step gravity), collisions by Minecraft. Levitation instead
+		// eases the vertical speed towards its rise, as Minecraft's does (a fifth of the way each 1/20 s), with no gravity
 		double vy0 = vel.y;
-		Vec3 want = new Vec3(vel.x * dt, vel.y * dt - 0.5 * CsMove.GRAVITY * dt * dt, vel.z * dt).scale(1 / CsMove.UNITS_PER_BLOCK);
-		vel = new Vec3(vel.x, vel.y - CsMove.GRAVITY * dt, vel.z);
+		double g = levitation >= 0 ? 0 : CsMove.GRAVITY * gravityScale;
+		if (levitation >= 0) {
+			vel = new Vec3(vel.x, vel.y + (levitation - vel.y) * (1 - Math.pow(0.8, dt * 20)), vel.z);
+		}
+		Vec3 want = new Vec3(vel.x * dt, vel.y * dt - 0.5 * g * dt * dt, vel.z * dt).scale(1 / CsMove.UNITS_PER_BLOCK);
+		vel = new Vec3(vel.x, vel.y - g * dt, vel.z);
 		Vec3 from = p.position();
 		if (onGround && MovementSettings.edgeGuard.holds(crouching, walking)) {
 			// crouching or walking holds you at an edge, as sneaking does in Minecraft
@@ -360,6 +429,7 @@ public final class CsPlayerMovement {
 		if (p.verticalCollision) {
 			vel = new Vec3(vel.x, 0, vel.z);
 		}
+		surf(p);
 		// stay on the ground going down stairs and slabs (Source's StayOnGround) instead of becoming airborne
 		if (wasOnGround && !jumped && !p.onGround() && vel.y <= 0) {
 			AABB below = p.getBoundingBox().move(0, -SNAP_DOWN, 0);
@@ -390,6 +460,42 @@ public final class CsPlayerMovement {
 					String.format("%.3f", duck), jumped, String.format("%.4f", lastJumpMul));
 		}
 		return jumped;
+	}
+
+	/**
+	 * Surf ramps (SurfRampBlock): Minecraft's collision lets CS movement into them, so here the player is pushed out of
+	 * any ramp they're in, the shortest way, and the part of the velocity going into it is taken away (Source's
+	 * ClipVelocity, overbounce 1): along a ramp you slide; a ramp is never ground, so gravity pulls you down it and
+	 * strafing into it holds you up. A few passes settle a box touching several ramps.
+	 */
+	private static void surf(LocalPlayer p) {
+		for (int pass = 0; pass < 3; pass++) {
+			AABB box = p.getBoundingBox();
+			boolean pushed = false;
+			for (net.minecraft.core.BlockPos pos : net.minecraft.core.BlockPos.betweenClosed(
+					net.minecraft.util.Mth.floor(box.minX), net.minecraft.util.Mth.floor(box.minY), net.minecraft.util.Mth.floor(box.minZ),
+					net.minecraft.util.Mth.floor(box.maxX), net.minecraft.util.Mth.floor(box.maxY), net.minecraft.util.Mth.floor(box.maxZ))) {
+				var state = p.level().getBlockState(pos);
+				if (!(state.getBlock() instanceof dev.countercraft.block.SurfRampBlock)) {
+					continue;
+				}
+				Vec3[] normal = new Vec3[1];
+				Vec3 out = dev.countercraft.block.SurfRampBlock.push(p.level(), pos, state, box, normal);
+				if (out == null) {
+					continue;
+				}
+				p.move(MoverType.SELF, out);
+				double into = vel.dot(normal[0]);
+				if (into < 0) {
+					vel = vel.subtract(normal[0].scale(into));
+				}
+				pushed = true;
+				box = p.getBoundingBox();
+			}
+			if (!pushed) {
+				return;
+			}
+		}
 	}
 
 	/** Source friction: speed drops by max(speed, sv_stopspeed) x sv_friction x dt. */

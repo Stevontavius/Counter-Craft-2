@@ -234,6 +234,22 @@ public final class CcOptionsScreen extends Screen {
 		return y + ROW;
 	}
 
+	/** A button that steps through {@code all} (saved on each press). */
+	private <E extends Enum<E>> int cycle(String text, String tip, E[] all, java.util.function.Supplier<E> get, java.util.function.Consumer<E> set,
+			java.util.function.Function<E, String> name, int y) {
+		label(text, y + 6);
+		Button b = Button.builder(Component.literal(name.apply(get.get())), btn -> {
+			set.accept(all[(get.get().ordinal() + 1) % all.length]);
+			CcOptions.save();
+			btn.setMessage(Component.literal(name.apply(get.get())));
+		}).bounds(controlX(), 0, controlW(), 20).build();
+		if (tip != null) {
+			b.setTooltip(Tooltip.create(Component.literal(tip)));
+		}
+		place(b, y);
+		return y + ROW;
+	}
+
 	private int slider(String text, double min, double max, double step, double current, java.util.function.DoubleFunction<String> fmt,
 			java.util.function.DoubleConsumer apply, int y) {
 		label(text, y + 6);
@@ -310,6 +326,8 @@ public final class CcOptionsScreen extends Screen {
 		y = toggle("Compass", "A heading strip at the top of the screen, under the player locator bar", CcOptions.compass(), CcOptions::setCompass, y);
 		y = toggle("CS Hotbar Rarity Colours", "Underlines each weapon in the CS hotbar in its finish's rarity colour (Mil-Spec blue, Covert red...)",
 				CcOptions.hotbarRarity(), CcOptions::setHotbarRarity, y);
+		y = toggle("X-Ray While Alive", "Your teammates show through walls in their team colour (T gold, CT blue). In hardcore, where everyone is on one "
+				+ "side, every player does. Spectating, X toggles it either way", CcOptions.xray(), CcOptions::setXray, y);
 		label("Paperdoll", y + 6);
 		Button doll = Button.builder(Component.literal(CcOptions.paperdoll().label), b -> {
 			CcOptions.Paperdoll[] all = CcOptions.Paperdoll.values();
@@ -320,6 +338,28 @@ public final class CcOptionsScreen extends Screen {
 		doll.setTooltip(Tooltip.create(Component.literal("A still 3D figure of you above your health in survival: your Minecraft skin or your equipped CS2 agent")));
 		place(doll, y);
 		y += ROW;
+		y += 4;
+		y = section("PLAYER LIST (HARDCORE)", y);
+		y = toggle("Player List", "Hardcore: every player's coordinates and dimension (or DEAD), with their skin's face. It fits itself around the money "
+				+ "panel, kill feed, paperdoll and chat", CcOptions.teamList(), CcOptions::setTeamList, y);
+		CcOptions.PlayerList list = CcOptions.playerList();
+		y = cycle("Side", "Left: under your money, above the paperdoll and chat. Right: under status effects and the kill feed, above the CS hotbar",
+				CcOptions.PlayerList.Side.values(), () -> list.side, v -> list.side = v, v -> v.label, y);
+		y = cycle("Sort By", "Name, or nearest first (the dead and players in other dimensions last)", CcOptions.PlayerList.Sort.values(),
+				() -> list.sort, v -> list.sort = v, v -> v.label, y);
+		y = slider("Size", 0.5, 1.5, 0.05, list.scale, v -> Math.round(v * 100) + "%", v -> {
+			list.scale = (float) v;
+			CcOptions.save();
+		}, y);
+		y = slider("Background Opacity", 0, 1, 0.05, list.opacity, v -> Math.round(v * 100) + "%", v -> {
+			list.opacity = (float) v;
+			CcOptions.save();
+		}, y);
+		y = toggle("Skin Faces", null, list.faces, v -> list.faces = v, y);
+		y = toggle("Coordinates", null, list.coordinates, v -> list.coordinates = v, y);
+		y = toggle("Dimension", null, list.dimension, v -> list.dimension = v, y);
+		y = toggle("Distance", "How far each player in your dimension is from you, in blocks", list.distance, v -> list.distance = v, y);
+		y = toggle("Show Yourself", "Your own row, with your coordinates", list.self, v -> list.self = v, y);
 		y += 4;
 		y = section("MOVEMENT", y);
 		label("Edge Guard", y + 6);

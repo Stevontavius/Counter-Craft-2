@@ -8,7 +8,7 @@
 
 A free, fan-made Fabric mod for Minecraft: Java Edition.
 
-[![Release](https://img.shields.io/badge/release-BETA%201.1.1-dcb45a?style=flat-square)](../../releases)
+[![Release](https://img.shields.io/badge/release-BETA%201.2-dcb45a?style=flat-square)](../../releases)
 [![Minecraft](https://img.shields.io/badge/Minecraft-26.3-62b47a?style=flat-square)](https://www.minecraft.net/)
 [![Fabric](https://img.shields.io/badge/Fabric%20Loader-0.19.5-dbd0b4?style=flat-square)](https://fabricmc.net/)
 [![Java](https://img.shields.io/badge/Java-25-e76f00?style=flat-square)](https://adoptium.net/)
@@ -48,11 +48,18 @@ A free, fan-made Fabric mod for Minecraft: Java Edition.
 - The Counter-Strike 2 arsenal: rifles, SMGs, pistols, snipers, shotguns, knives and grenades, each with its own stats.
 - Spray patterns measured in Counter-Strike 2, first-person viewmodels with their animations, recoil and inaccuracy.
 - A buy menu with an in-game economy: kill rewards, armor, utility and refunds.
+- Grenade binds (HE, flashbang, smoke, decoy, molotov), unbound by default as in CS2.
 
 **Survival, the Counter-Craft way**
 - A day-and-night round loop on top of Minecraft survival, with a buy phase each morning and rewards for each day survived.
+- CS2 movement that still answers to Minecraft: Speed, Slowness, Jump Boost, Slow Falling, Levitation, soul sand and
+  honey change it as they would in Minecraft.
+- Surf ramps: the 45° slope of any stair, crafted from that stair and a feather. With CS movement you surf them;
+  operators can raise `sv_airaccelerate` (up to 500, saved per world) for surf servers.
 - Hardcore co-op with *Another Chance*: spectate your teammates, then respawn at dawn if anyone made it through the night.
-- Terrorist and Counter-Terrorist teams as a cosmetic identity, with agent models, voice lines and radio calls.
+  In hardcore, a player list shows where everyone is (or that they're dead), with their skin's face.
+- Terrorist and Counter-Terrorist teams as a cosmetic identity, with agent models, voice lines and radio calls. An
+  optional X-ray shows your teammates through walls in their team colour (in hardcore, everyone).
 
 **Presentation**
 - A Counter-Strike-style HUD, scoreboard, MVP and round-end panels, death cam and ragdolls.
@@ -87,14 +94,19 @@ sell it.
 | **System** | Windows 10 or 11 |
 | **Games** | Counter-Strike 2, installed through Steam. Counter-Strike: Global Offensive optionally, for its weapon sounds |
 | **Minecraft** | Minecraft: Java Edition, with the Minecraft Launcher, Prism Launcher or MultiMC |
-| **Java** | Java 25, to run the installer ([Eclipse Temurin](https://adoptium.net/) or [Azul Zulu](https://www.azul.com/downloads/)) |
+| **Java** | Nothing to install: the installer app brings its own Java (the plain `.jar` needs Java 25), and your launcher runs Minecraft with its own |
 | **Disk space** | About 66 GB free while the asset pack builds; about 16 GB stays |
 | **Time** | A few hours for the first build (2.5 to 4 hours measured) |
 
 ## Installation
 
-1. Download **`Counter-Craft-2-Installer-BETA-1.1.1.zip`** from [Releases](../../releases) and unzip it.
-2. Run **`Run Counter-Craft 2 Installer.bat`** (or double-click `Counter-Craft-2-Installer-BETA-1.1.1.jar`).
+1. Download **`CC2-Installer-Beta-1.2-Windows.zip`** from [Releases](../../releases) and unzip it.
+2. Open the **Counter-Craft 2 Installer** folder and double-click **`Counter-Craft 2 Installer.exe`**. If Windows says it
+   protected your PC, choose **More info**, then **Run anyway** (the installer isn't code-signed).
+
+   Not on Windows, or rather have a single file? **`CC2-Installer-Beta-1.2-Universal.jar`** is the same installer without
+   the app around it: double-click it, or run `java -jar CC2-Installer-Beta-1.2-Universal.jar`. It needs Java 25; if
+   whatever Java opens it is older, it finds a Java 25 on your PC (Minecraft's own counts) and opens with that.
 3. Read the notices and licenses, then go through the steps:
 
    | Step | What happens |
@@ -120,7 +132,7 @@ Worlds and settings stay as they are.
 
 A server needs:
 
-1. **`Counter-Craft-2-Server-BETA-1.1.1.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
+1. **`CC2-Server-Beta-1.2.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
    (Minecraft 26.3, Fabric Loader 0.19.5).
 2. **The weapon table**: copy `config/countercraft/weapons.json` from a Counter-Craft 2 install into the server's
    `config/countercraft/` folder.
@@ -156,9 +168,25 @@ your public profile already shows.
 </details>
 
 <details>
+<summary><b>I linked Steam, but a skin I own isn't unlocked</b></summary>
+
+If it was traded to you in the last 7 days, it's trade protected, and Steam shows trade-protected items only to you
+while you're signed in, never in your public inventory. Counter-Craft 2 sees it once the protection ends: press
+**Refresh inventory** then. Until then, Skinchanger Mode unlocks it (without the Genuine Skins ✓).
+</details>
+
+<details>
 <summary><b>Can I use Counter-Craft 2 in a video or on a server?</b></summary>
 
 Yes. Please credit Counter-Craft 2, and follow Mojang's and Valve's own rules for videos and servers.
+</details>
+
+<details>
+<summary><b>Double-clicking the Universal jar does nothing</b></summary>
+
+Windows is opening `.jar` files without `-jar` (this happens after choosing Java through "Open with"). Use the Windows
+download (`CC2-Installer-Beta-1.2-Windows.zip`, double-click `Counter-Craft 2 Installer.exe`), or run
+`java -jar CC2-Installer-Beta-1.2-Universal.jar` in a terminal.
 </details>
 
 <details>
@@ -173,7 +201,7 @@ Requires a Java 25 JDK. The converter is Python, run with [uv](https://docs.astr
 
 ```bash
 ./gradlew build           # the mod: build/libs/
-./gradlew installerBeta   # the installer: INSTALLERTESTBETA/
+./gradlew installerExe    # the installer app (exe + its own Java): INSTALLERTESTBETA/
 ```
 
 | Folder | What's inside |

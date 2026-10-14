@@ -50,6 +50,7 @@ public final class PaperdollHud {
 		int y1 = Math.round(h - BOTTOM * k);
 		int x1 = x0 + Math.round(WIDTH * k);
 		int y0 = y1 - Math.round(HEIGHT * k);
+		HudSpace.mark(HudSpace.Panel.PAPERDOLL, y0, y1);
 		if (mode == CcOptions.Paperdoll.AGENT && AgentClient.data() != null) {
 			agent(g, p, x0, y0, x1, y1);
 		} else {
@@ -66,7 +67,7 @@ public final class PaperdollHud {
 			String knife = Teams.CT.equals(team) ? "knife_ct" : "knife_t";
 			var item = new net.minecraft.client.renderer.item.ItemStackRenderState();
 			Minecraft.getInstance().getItemModelResolver().updateForLiving(item, held, net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_RIGHT_HAND, p);
-			AgentPip.draw(g, AgentClient.agentFor(p), null, null, AgentPip.clipFor(team, knife), 30f, SCENE, x0, y0, x1, y1, item,
+			AgentPip.draw(g, AgentClient.agentFor(p), null, null, AgentPip.clipFor(team, knife), 30f, SCENE, x0, y0, x1, y1, item, held,
 					held.getItem() instanceof net.minecraft.world.item.BlockItem ? null : knife, AgentClient.gloveFor(team));
 			return;
 		}
@@ -79,8 +80,8 @@ public final class PaperdollHud {
 				? dev.countercraft.client.skins.Skins.of(p.getMainHandItem())
 				: dev.countercraft.client.skins.Skins.get(gun, LoadoutConfig.skin(team, gun));
 		// the end of the buy menu clip: a still standing pose with the weapon
-		AgentPip.draw(g, AgentClient.agentFor(p), gun, finish, AgentPip.clipFor(team, gun), 30f, SCENE, x0, y0, x1, y1, null, null,
-				AgentClient.gloveFor(team));
+		AgentPip.draw(g, AgentClient.agentFor(p), gun, finish, AgentPip.clipFor(team, gun), 30f, SCENE, x0, y0, x1, y1, null,
+				net.minecraft.world.item.ItemStack.EMPTY, null, AgentClient.gloveFor(team));
 	}
 
 	/** As InventoryScreen.extractEntityInInventoryFollowsMouse, with a fixed angle and the vanilla model. */

@@ -44,6 +44,15 @@ public final class CsHotbar {
 				ClientPlayNetworking.send(CsModePayload.INSTANCE);
 			}
 		}
+		for (var e : GunKeys.GRENADE_KEYS.entrySet()) {
+			boolean pressed = false;
+			while (e.getKey().consumeClick()) {
+				pressed = true;
+			}
+			if (pressed && mc.gui.screen() == null) {
+				selectGrenade(mc, e.getValue());
+			}
+		}
 		if (!active()) {
 			while (GunKeys.LAST_WEAPON.consumeClick()) {
 				// CS hotbar only (here Q is Minecraft's Drop)
@@ -74,6 +83,21 @@ public final class CsHotbar {
 				int target = pick(d, i, mc.player.getInventory().getSelectedSlot());
 				if (target >= 0) {
 					mc.player.getInventory().setSelectedSlot(target);
+				}
+			}
+		}
+	}
+
+	/** A grenade key: the first slot holding one of {@code ids}, in the CS slots (CS mode) or the Minecraft hotbar. */
+	private static void selectGrenade(Minecraft mc, java.util.List<String> ids) {
+		boolean cs = active();
+		int slots = cs ? ORDER.length : 9;
+		for (String id : ids) {
+			for (int s = 0; s < slots; s++) {
+				ItemStack st = cs ? CsInventory.of(mc.player).get(s) : mc.player.getInventory().getItem(s);
+				if (st.getItem() instanceof dev.countercraft.gun.GrenadeItem g && g.weaponId().equals(id)) {
+					mc.player.getInventory().setSelectedSlot(s);
+					return;
 				}
 			}
 		}
@@ -136,6 +160,7 @@ public final class CsHotbar {
 		float rowH = 64 * k;
 		float right = w - 24 * k;
 		float y = h * 0.62f - ROWS.length * rowH / 2;
+		dev.countercraft.client.hud.HudSpace.mark(dev.countercraft.client.hud.HudSpace.Panel.CS_HOTBAR, y, y + ROWS.length * rowH);
 		for (int r = 0; r < ROWS.length; r++) {
 			boolean any = false;
 			float rowSel = 0f;

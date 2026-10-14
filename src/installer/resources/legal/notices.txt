@@ -35,6 +35,7 @@ Counter-Craft 2 and this installer are provided "as is", without warranty of any
 Counter-Craft 2: the PolyForm Noncommercial License 1.0.0 (below). Any noncommercial use is permitted; commercial use is not.
 Included with this installer:
 - Fabric API (FabricMC): the Apache License 2.0 (below).
+- The installer app (Counter-Craft 2 Installer.exe) runs on its own copy of Java: Azul Zulu, a build of OpenJDK, under the GNU General Public License, version 2, with the Classpath Exception. Its license files are in the app's runtime\legal folder.
 - Brotli decoder (org.brotli:dec, inside the mod): the MIT License (below; also in the mod as LICENSE_brotli).
 Downloaded by your Minecraft launcher when you first play, not by this installer:
 - Minecraft: Mojang's Minecraft End User License Agreement.

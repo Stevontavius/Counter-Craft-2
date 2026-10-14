@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
 public class CounterCraft implements ModInitializer {
 	public static final String MOD_ID = "countercraft";
 	/** The release name players see ("BETA 1.1"); the jar's version (fabric.mod.json) stays a plain number for Fabric and the build. */
-	public static final String RELEASE = "BETA 1.1.1";
+	public static final String RELEASE = "BETA 1.2";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_ID);
 
 	/** Damage types (data/countercraft/damage_type/*.json); all bypass vanilla armor and i-frames, like CS2. */
@@ -129,6 +129,7 @@ public class CounterCraft implements ModInitializer {
 		sound("weapon.knife.hitwall");
 		sound("weapon.knife.stab");
 		sound("molotov.extinguish");
+		dev.countercraft.block.SurfRamps.init();
 		Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, id("weapons"), FabricCreativeModeTab.builder()
 				.title(Component.translatable("itemGroup.countercraft.weapons"))
 				.icon(() -> new ItemStack(GUNS.getOrDefault("ak47", GUNS.values().iterator().next())))
@@ -148,7 +149,8 @@ public class CounterCraft implements ModInitializer {
 			if (stack.getItem() instanceof GunItem gun) {
 				gun.trigger(context.player(), stack, payload);
 			} else if (stack.getItem() instanceof KnifeItem knife && payload.fresh() && Deploy.ready(context.player(), KnifeItem.LEEWAY_TICKS)) {
-				knife.attack(context.player(), stack, payload.alt(), payload.backstab()); // fresh: the packet the client swung on
+				// fresh: the packet the client swung on
+				knife.attack(context.player(), stack, payload.alt(), payload.target(), payload.backstab());
 			}
 		});
 		PayloadTypeRegistry.serverboundPlay().register(ThrowPayload.TYPE, ThrowPayload.CODEC);
@@ -251,6 +253,7 @@ public class CounterCraft implements ModInitializer {
 		});
 		Combat.init();
 		dev.countercraft.team.FriendlyFire.init();
+		dev.countercraft.team.TeamList.init();
 		VersionCheck.init();
 		dev.countercraft.team.Cosmetics.init();
 		PayloadTypeRegistry.serverboundPlay().register(dev.countercraft.net.MobHeadsPayload.TYPE, dev.countercraft.net.MobHeadsPayload.CODEC);

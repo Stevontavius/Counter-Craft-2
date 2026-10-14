@@ -28,7 +28,7 @@ import net.minecraft.world.phys.Vec3;
 /**
  * Another Chance on the client ({@link AnotherChance}): waiting for dawn, you spectate the players still alive. Left /
  * right click switch to the next / previous one (CS2's spectator controls), jump (Space) switches between their view and
- * a third person camera you turn with the mouse, X shows players through walls (Minecraft's glow, in red), and N frees
+ * a third person camera you turn with the mouse, X shows players through walls (Minecraft's glow, in each one's team colour), and N frees
  * the cursor to pick who to watch ({@link SpectateScreen}). At the bottom, a banner in the watched
  * player's team colour: their skin's face and name, the weapon in hand, health, armor, hunger and oxygen. At dawn the
  * cursor frees itself to choose where to respawn (after {@link AnotherChance#AUTO_RESPAWN_SECONDS} without a choice: at
@@ -167,10 +167,23 @@ public final class Spectate {
 		}
 	}
 
-	/** X-Ray: players drawn through walls in Minecraft's glow, red (EntityRenderer / Minecraft mixins). */
+	/**
+	 * X-Ray: players drawn through walls in Minecraft's glow, each in their team's colour (EntityRenderer / Minecraft
+	 * mixins). Spectating in Another Chance: everyone alive, toggled with X. Alive, with CC2 Options > HUD > X-Ray on: in
+	 * hardcore (where everyone is on one side) every player, otherwise your own team only.
+	 */
 	public static boolean xray(Entity e) {
 		Minecraft mc = Minecraft.getInstance();
-		return xray && e instanceof Player p && p != mc.player && !p.isSpectator() && p.isAlive() && locked(mc);
+		if (!(e instanceof Player p) || p == mc.player || p.isSpectator() || !p.isAlive() || mc.player == null) {
+			return false;
+		}
+		if (locked(mc)) {
+			return xray;
+		}
+		if (!dev.countercraft.client.options.CcOptions.xray() || !mc.player.isAlive() || mc.player.isSpectator()) {
+			return false;
+		}
+		return mc.level.getLevelData().isHardcore() || dev.countercraft.team.Teams.of(p).equals(dev.countercraft.team.Teams.of(mc.player));
 	}
 
 	/** The third person camera is on (CameraMixin). */

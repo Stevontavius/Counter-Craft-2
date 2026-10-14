@@ -35,6 +35,25 @@ public final class GunKeys {
 	 */
 	public static final KeyMapping LAST_WEAPON = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping("key.countercraft.lastinv", InputConstants.Type.KEYBOARD, InputConstants.KEY_Q, CATEGORY));
+	/**
+	 * CS2's grenade binds (slot6 HE, slot7 flashbang, slot8 smoke, slot9 decoy, slot10 molotov / incendiary): straight
+	 * to that grenade, in the CS hotbar or the Minecraft hotbar. Unbound by default, as in CS2.
+	 */
+	public static final KeyMapping HE_GRENADE = grenadeKey("he");
+	public static final KeyMapping FLASHBANG = grenadeKey("flashbang");
+	public static final KeyMapping SMOKE = grenadeKey("smoke");
+	public static final KeyMapping DECOY = grenadeKey("decoy");
+	public static final KeyMapping MOLOTOV = grenadeKey("molotov");
+	/** Each grenade key and the grenade ids it picks (the molotov key takes the incendiary too). */
+	public static final java.util.Map<KeyMapping, java.util.List<String>> GRENADE_KEYS = java.util.Map.of(HE_GRENADE, java.util.List.of("hegrenade"),
+			FLASHBANG, java.util.List.of("flashbang"), SMOKE, java.util.List.of("smokegrenade"), DECOY, java.util.List.of("decoy"),
+			MOLOTOV, java.util.List.of("molotov", "incgrenade"));
+
+	private static KeyMapping grenadeKey(String name) {
+		return KeyMappingHelper.registerKeyMapping(new KeyMapping("key.countercraft.grenade_" + name, InputConstants.Type.KEYBOARD,
+				InputConstants.UNKNOWN.getValue(), CATEGORY));
+	}
+
 	/** CS2 buy menu (B, like CS2). */
 	public static final KeyMapping BUY = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping("key.countercraft.buy", InputConstants.Type.KEYBOARD, InputConstants.KEY_B, CATEGORY));

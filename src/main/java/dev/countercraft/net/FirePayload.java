@@ -11,14 +11,15 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
  * {@code fresh} = the button went down this tick (a new click: no catching up on a shot that was due earlier; for a
  * knife, the packet the client swung on, the only kind the server swings on);
  * {@code motion} = the shooter's movement this tick, for CS2's movement / air inaccuracy. The server decides whether
- * a shot actually happens. {@code backstab}: a knife swing the client animated as a backstab, the entity it saw it on
- * (else -1): the server takes it when that's what it hits and you're behind it (see KnifeItem.attack).
+ * a shot actually happens. A knife swing also carries what the client saw it hit: {@code target}, the entity (else -1),
+ * and {@code backstab}, that entity again when it animated a backstab (else -1). The server takes them when they check
+ * out (see KnifeItem.attack).
  */
-public record FirePayload(boolean alt, boolean fresh, Motion motion, int backstab) implements CustomPacketPayload {
+public record FirePayload(boolean alt, boolean fresh, Motion motion, int target, int backstab) implements CustomPacketPayload {
 	public static final Type<FirePayload> TYPE = new Type<>(CounterCraft.id("fire"));
 
 	public FirePayload(boolean alt, boolean fresh, Motion motion) {
-		this(alt, fresh, motion, -1);
+		this(alt, fresh, motion, -1, -1);
 	}
 
 	/** Velocity in CS units/s (Minecraft axes), on the ground, walking (CS2's walk key), duck amount 0..1. */
@@ -37,6 +38,7 @@ public record FirePayload(boolean alt, boolean fresh, Motion motion, int backsta
 			ByteBufCodecs.BOOL, FirePayload::alt,
 			ByteBufCodecs.BOOL, FirePayload::fresh,
 			Motion.CODEC, FirePayload::motion,
+			ByteBufCodecs.VAR_INT, FirePayload::target,
 			ByteBufCodecs.VAR_INT, FirePayload::backstab,
 			FirePayload::new);
 
