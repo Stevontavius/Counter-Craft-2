@@ -41,6 +41,36 @@ public final class CsMove {
 	 */
 	public static final double BHOP_PENALTY = 0.142;
 	public static final double BHOP_RECOVERY = 0.596;
+
+	/**
+	 * CS2's stamina: that weaker jump, set by its cvars (ServerCvars; the client's from CvarsPayload). Stamina (0 to
+	 * sv_staminamax, CS2 80) weakens a jump to (100 - stamina)% of its height and recovers at BHOP_RECOVERY x 100 a second
+	 * (59.6 measured; CS2's sv_staminarecoveryrate is 60). A landing adds sv_staminalandcost x the landing speed, scaled so
+	 * CS2's 0.05 gives exactly the measured penalty above; a jump adds sv_staminajumpcost x the jump speed (APPROXIMATION,
+	 * not measured: at CS2's 0.08 it has recovered before a normal landing, so the measured jumps stay as they were). Both
+	 * costs at 0: no penalty, as bunny hop servers run.
+	 */
+	public static volatile double staminaMax = 80;
+	public static volatile double staminaJumpCost = 0.08;
+	public static volatile double staminaLandCost = 0.05;
+	private static final double STAMINA_LAND_COST = 0.05;
+	public static final double STAMINA_RECOVERY = BHOP_RECOVERY * 100;
+
+	public static void stamina(double max, double jumpCost, double landCost) {
+		staminaMax = max;
+		staminaJumpCost = jumpCost;
+		staminaLandCost = landCost;
+	}
+
+	/** Stamina a landing at {@code speed} (u/s, downwards) adds. */
+	public static double landStamina(double speed) {
+		return BHOP_PENALTY * 100 * speed / JUMP_IMPULSE * (staminaLandCost / STAMINA_LAND_COST);
+	}
+
+	/** Stamina a jump adds. */
+	public static double jumpStamina() {
+		return staminaJumpCost * JUMP_IMPULSE;
+	}
 	/** sv_enablebunnyhopping 0: a jump can't carry more than 1.1x max speed. */
 	public static final double BHOP_SPEED_CAP = 1.1;
 

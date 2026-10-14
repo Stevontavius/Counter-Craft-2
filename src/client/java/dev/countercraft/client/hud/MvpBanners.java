@@ -57,7 +57,7 @@ public final class MvpBanners {
 	/** Someone completed a challenge (from the server). */
 	public static void challenge(MvpPayload p) {
 		int accent = 0xFF000000 | (Teams.CT.equals(p.team()) ? Teams.CT_COLOR : Teams.T.equals(p.team()) ? Teams.T_COLOR : 0xB06BFF);
-		QUEUE.add(new Banner(true, "CHALLENGE COMPLETE", p.title(), p.description(), ItemStack.EMPTY, accent, p.name(),
+		QUEUE.add(new Banner(true, p.label(), p.title(), p.description(), ItemStack.EMPTY, accent, p.name(),
 				p.kit().isEmpty() ? LoadoutConfig.DEFAULT_MUSIC_KIT : p.kit(), 8.0));
 	}
 

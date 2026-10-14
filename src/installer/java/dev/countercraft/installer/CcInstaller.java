@@ -46,7 +46,7 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 
 /**
- * Counter-Craft 2's installer (BETA 1.2.1): builds the asset pack from the player's own Counter-Strike 2 install (and
+ * Counter-Craft 2's installer (BETA 1.2.2): builds the asset pack from the player's own Counter-Strike 2 install (and
  * CS:GO's, for its weapon sounds) with the converter (converter/build_pack.py), or updates one by its manifest, then
  * installs the mod and the pack into one launcher's Counter-Craft 2 profile or instance (Install) and checks the result.
  * Pages: Welcome, Notices (agreed to before going on), Counter-Strike, Destination, Review, Progress, Finish; in the look

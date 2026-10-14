@@ -38,7 +38,9 @@ public final class CsPlayerMovement {
 	private static double duckOld;
 	private static boolean wasOnGround = true;
 	private static boolean jumpHeld;
-	private static double lastLand = Double.NEGATIVE_INFINITY;
+	/** CS2's stamina as of the last jump or landing, and when that was (CsMove.stamina). */
+	private static double stamina;
+	private static double staminaAt = Double.NEGATIVE_INFINITY;
 	private static double landSpeed;
 	private static boolean landedThisTick;
 	private static double landPunch;              // degrees of roll at landPunchAt
@@ -334,6 +336,14 @@ public final class CsPlayerMovement {
 		return flat.lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : flat.normalize();
 	}
 
+	/**
+	 * Stamina now: as of the last jump or landing, recovered since (from the end of that step: CS2's sub-tick jump lands on
+	 * the landing instant).
+	 */
+	private static double staminaNow() {
+		return Math.max(0, stamina - CsMove.STAMINA_RECOVERY * Math.max(0, clock - staminaAt - CsMove.TICK));
+	}
+
 	/** One 1/64 s Source move. Returns true if the player jumped. */
 	private static boolean step(LocalPlayer p, double dt, boolean wantJump, double fwd, double side, boolean walking,
 			boolean crouching, double maxSpeed, float yaw) {
@@ -351,10 +361,11 @@ public final class CsPlayerMovement {
 
 		boolean jumped = false;
 		if (onGround && wantJump) {
-			// CS2 2026: a jump right after landing is weaker, recovering over ~0.25 s
-			// (time counted from the end of the landing step: CS2's sub-tick jump lands on the landing instant)
-			double since = Math.max(0, clock - lastLand - CsMove.TICK);
-			double mul = Math.min(1.0, 1.0 - CsMove.BHOP_PENALTY * landSpeed / CsMove.JUMP_IMPULSE + CsMove.BHOP_RECOVERY * since);
+			// CS2's stamina: a jump right after landing (or jumping) is weaker, recovering over ~0.25 s
+			double s = staminaNow();
+			double mul = Math.max(0.0, 1.0 - s / 100.0);
+			stamina = Math.min(CsMove.staminaMax, s + CsMove.jumpStamina());
+			staminaAt = clock;
 			double h = Math.hypot(vel.x, vel.z);
 			double limit = CsMove.BHOP_SPEED_CAP * maxSpeed * speedScale;
 			Vec3 hv = !MovementSettings.enableBhop && h > limit ? new Vec3(vel.x * limit / h, 0, vel.z * limit / h) : new Vec3(vel.x, 0, vel.z);
@@ -444,7 +455,8 @@ public final class CsPlayerMovement {
 		boolean landed = now && !wasOnGround;
 		if (landed) {
 			landSpeed = Math.max(0, -vy0);
-			lastLand = clock;
+			stamina = Math.min(CsMove.staminaMax, staminaNow() + CsMove.landStamina(landSpeed));
+			staminaAt = clock;
 			landedThisTick = true;
 			if (landSpeed > CsMove.LAND_PUNCH_MIN_SPEED) {
 				landPunch = -CsMove.LAND_PUNCH_PER_SPEED * landSpeed;

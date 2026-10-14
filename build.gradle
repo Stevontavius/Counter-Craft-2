@@ -85,12 +85,12 @@ tasks.register("installerJar", Jar) {
 	}
 }
 
-// `gradlew installerBeta`: the BETA 1.2.1 test build of the installer, in INSTALLERTESTBETA/ (installerJar and its jar stay as
+// `gradlew installerBeta`: the BETA 1.2.2 test build of the installer, in INSTALLERTESTBETA/ (installerJar and its jar stay as
 // they are): the same contents, its own folder and name
 tasks.register("installerBeta", Jar) {
 	notCompatibleWithConfigurationCache("bundles files from the runtime classpath")
 	destinationDirectory = file("INSTALLERTESTBETA")
-	archiveFileName = "CC2-Installer-Beta-1.2.1-Universal.jar" // the release's names: this, CC2-Installer-Beta-1.2.1-Windows.zip, CC2-Server-Beta-1.2.1.jar
+	archiveFileName = "CC2-Installer-Beta-1.2.2-Universal.jar" // the release's names: this, CC2-Installer-Beta-1.2.2-Windows.zip, CC2-Server-Beta-1.2.2.jar
 	from sourceSets.installer.output
 	from sourceSets.installerBoot.output
 	from("LICENSE") {
@@ -112,7 +112,7 @@ tasks.register("installerBeta", Jar) {
 		}
 	}
 	manifest {
-		attributes "Main-Class": "dev.countercraft.installer.Boot", "Implementation-Version": "BETA 1.2.1"
+		attributes "Main-Class": "dev.countercraft.installer.Boot", "Implementation-Version": "BETA 1.2.2"
 	}
 }
 

@@ -291,9 +291,17 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		return position().add(0, HALF, 0);
 	}
 
-	/** CS's hull trace through this world (units in, units out). */
+	/** A grenade this fast (u/s) smashes the glass it hits and flies on, as through a CS2 window. */
+	private static final double GLASS_BREAK_SPEED = 100.0;
+
+	/** CS's hull trace through this world (units in, units out); on the server, glass in the way is smashed. */
 	private GrenadePhysics.Hit trace(Vec3 a, Vec3 b) {
 		TraceHit h = hullTrace(level(), this, a.scale(1.0 / UNITS), b.scale(1.0 / UNITS));
+		for (int i = 0; i < 4 && h.block() != null && level() instanceof ServerLevel sl && sim.vel.length() > GLASS_BREAK_SPEED
+				&& Ballistics.glass(sl.getBlockState(h.block())) && getOwner() instanceof LivingEntity thrower && Ballistics.mayBreak(sl, thrower, h.block()); i++) {
+			sl.destroyBlock(h.block(), false, this);
+			h = hullTrace(level(), this, a.scale(1.0 / UNITS), b.scale(1.0 / UNITS));
+		}
 		if (h.normal() != null) {
 			lastHitEntity = h.entity();
 		}
@@ -301,7 +309,7 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 	}
 
 	/** Where a swept hull stopped; normal null if nothing was hit. */
-	public record TraceHit(Vec3 end, Vec3 normal, double fraction, Entity entity) {
+	public record TraceHit(Vec3 end, Vec3 normal, double fraction, Entity entity, BlockPos block) {
 	}
 
 	/**
@@ -344,7 +352,7 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 			}
 		}
 		Entity owner = self instanceof GrenadeEntity g ? g.getOwner() : self;
-		for (Entity e : !entities ? List.<Entity>of() : level.getEntities(self, sweep.inflate(0.5), x -> x instanceof LivingEntity && x.isAlive() && !x.isSpectator() && x != owner)) {
+		for (Entity e : !entities ? List.<Entity>of() : level.getEntities(self, sweep.inflate(0.5), x -> (x instanceof LivingEntity || x instanceof net.minecraft.world.entity.boss.enderdragon.EndCrystal) && x.isAlive() && !x.isSpectator() && x != owner)) {
 			AABB box = e.getBoundingBox().inflate(half);
 			if (box.contains(a)) {
 				continue;
@@ -360,12 +368,13 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 			}
 		}
 		if (best == null) {
-			return new TraceHit(b, null, 1.0, null);
+			return new TraceHit(b, null, 1.0, null, null);
 		}
 		Direction face = best.getDirection();
 		Vec3 n = new Vec3(face.getStepX(), face.getStepY(), face.getStepZ());
 		// stop a hair short of the surface (Source's DIST_EPSILON is 1/32 unit)
-		return new TraceHit(best.getLocation().add(n.scale(0.03125 / UNITS)), n, len < 1e-9 ? 0 : Math.sqrt(bestD) / len, bestEntity);
+		return new TraceHit(best.getLocation().add(n.scale(0.03125 / UNITS)), n, len < 1e-9 ? 0 : Math.sqrt(bestD) / len, bestEntity,
+				bestEntity == null ? best.getBlockPos() : null);
 	}
 
 	@Override
@@ -411,6 +420,9 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 					dev.countercraft.BossArmor.smokePopped(level, position(), getOwner());
 				} else if ("decoy".equals(k) && age >= FUSE && still) {
 					startEffect(DECOYING);
+				} else if (("molotov".equals(k) || "incgrenade".equals(k)) && isInWater()) {
+					sound("molotov.extinguish", 1f); // into water: it never lights
+					discard();
 				} else if (("molotov".equals(k) || "incgrenade".equals(k)) && age >= MOLOTOV_AIR) {
 					sound(def().sounds().get("fail"), 1f);
 					level.sendParticles(ParticleTypes.FLAME, getX(), getY(), getZ(), 20, 0.4, 0.4, 0.4, 0.02);
@@ -440,6 +452,9 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		setDeltaMovement(Vec3.ZERO);
 	}
 
+	/** Glass within this many blocks of an HE blast breaks. */
+	private static final double HE_GLASS_RADIUS = 2.5;
+
 	/** HE: CS damage 99 within 350 units, Gaussian falloff (sigma = radius / 3), blocked by walls. */
 	private void explodeHe(ServerLevel level) {
 		Guns.GrenadeDef d = def();
@@ -449,6 +464,15 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, c.x, c.y, c.z, 1, 0, 0, 0, 0);
 		level.sendParticles(ParticleTypes.LARGE_SMOKE, c.x, c.y, c.z, 30, 1.2, 0.8, 1.2, 0.02);
 		sound(d.sounds().get("detonate"), 3f);
+		// the blast smashes the glass right around it
+		if (getOwner() instanceof LivingEntity thrower) {
+			int r = (int) Math.ceil(HE_GLASS_RADIUS);
+			for (BlockPos p : BlockPos.betweenClosed(BlockPos.containing(c).offset(-r, -r, -r), BlockPos.containing(c).offset(r, r, r))) {
+				if (Vec3.atCenterOf(p).distanceTo(c) <= HE_GLASS_RADIUS && Ballistics.glass(level.getBlockState(p)) && Ballistics.mayBreak(level, thrower, p)) {
+					level.destroyBlock(p, false, this);
+				}
+			}
+		}
 		// living things, end crystals and the dragon's parts; a creature is hurt once, through its nearest part
 		java.util.Map<Entity, Entity> nearest = new java.util.HashMap<>();
 		for (Entity e : level.getEntities((Entity) null, new AABB(c, c).inflate(radius + 4), e -> Ballistics.hittable(e, null))) {
@@ -529,8 +553,17 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		return false;
 	}
 
-	/** Molotov / incendiary: a fire pool that grows over 1 s, hurts 40 CS HP/s, and dies in smoke. */
+	/**
+	 * Molotov / incendiary: a fire pool that grows over 1 s, hurts 40 CS HP/s, and dies in smoke, in water and in rain
+	 * (Minecraft's rain: none in deserts, badlands or savannas, and snow doesn't put it out).
+	 */
 	private void burn(ServerLevel level, int stAge) {
+		BlockPos at = blockPosition();
+		if (level.getFluidState(at).is(net.minecraft.tags.FluidTags.WATER) || level.isRainingAt(at) || level.isRainingAt(at.above())) {
+			sound("molotov.extinguish", 1f);
+			discard();
+			return;
+		}
 		double r = fireRadius(stAge);
 		for (GrenadeEntity smoke : level.getEntitiesOfClass(GrenadeEntity.class, getBoundingBox().inflate(SMOKE_RADIUS + FIRE_RADIUS))) {
 			if (smoke.state() == SMOKING && smoke.position().distanceTo(position()) < SMOKE_RADIUS + r * 0.5) {

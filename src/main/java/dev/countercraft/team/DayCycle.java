@@ -58,17 +58,18 @@ public final class DayCycle {
 
 	/**
 	 * Every server tick: at each new dawn the round is won by every player alive and on a team (the day's number is the
-	 * world's: the first dawn ends day 1). Time set backwards just restarts the count.
+	 * world's: the first dawn ends day 1). Time set backwards just restarts the count. Regular survival earns the same
+	 * day's reward, quietly: the chat line, no banner, radio or buy phase.
 	 */
 	public static void tick(net.minecraft.server.MinecraftServer server) {
-		if (!server.overworld().getLevelData().isHardcore()) {
-			return;
+		boolean hardcore = server.overworld().getLevelData().isHardcore();
+		if (hardcore) {
+			boolean buy = buyPhase(server.overworld());
+			if (wasBuy && !buy) {
+				dev.countercraft.AutoRadio.buyPhaseOver(inRound(server)); // one of them gives a pep talk
+			}
+			wasBuy = buy;
 		}
-		boolean buy = buyPhase(server.overworld());
-		if (wasBuy && !buy) {
-			dev.countercraft.AutoRadio.buyPhaseOver(inRound(server)); // one of them gives a pep talk
-		}
-		wasBuy = buy;
 		long d = Math.floorDiv(server.overworld().getOverworldClockTime(), DAY);
 		if (lastDay < 0 || d < lastDay) {
 			lastDay = d;
@@ -79,6 +80,14 @@ public final class DayCycle {
 		}
 		lastDay = d;
 		int day = (int) Math.min(Integer.MAX_VALUE, d);
+		if (!hardcore) {
+			for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+				if (p.isAlive() && !p.isSpectator() && !Economy.freeBuy(p)) {
+					daySurvived(p, day, 1f);
+				}
+			}
+			return;
+		}
 		java.util.List<ServerPlayer> survivors = inRound(server);
 		for (ServerPlayer p : survivors) {
 			daySurvived(p, day, 1f);
@@ -105,20 +114,17 @@ public final class DayCycle {
 	}
 
 	/**
-	 * Counter-Craft, a dawn: the round is won. {@code share} of the day's reward: 1 for the players alive, less for those
-	 * who died that day (Another Chance).
+	 * A dawn: the day's reward. {@code share} of it: 1 for the players alive, less for those who died that day (Another
+	 * Chance). Hardcore (Counter-Craft) also shows the round-won banner.
 	 */
 	public static void daySurvived(ServerPlayer p, int day, float share) {
-		if (!p.level().getLevelData().isHardcore()) {
-			return;
-		}
 		int reward = Math.round(reward(day) * share);
 		int before = Economy.money(p);
 		Economy.add(p, reward);
 		int got = Economy.money(p) - before;
 		p.sendSystemMessage(Component.literal("+$" + got + ": Award for surviving day " + day + (share < 1f ? " (halved: you died)." : "."))
 				.withColor(0x6FB86F));
-		if (ServerPlayNetworking.canSend(p, DaySurvivedPayload.TYPE)) {
+		if (p.level().getLevelData().isHardcore() && ServerPlayNetworking.canSend(p, DaySurvivedPayload.TYPE)) {
 			ServerPlayNetworking.send(p, new DaySurvivedPayload(day, got));
 		}
 	}

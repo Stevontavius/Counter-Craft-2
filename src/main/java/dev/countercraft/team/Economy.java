@@ -19,17 +19,52 @@ import net.minecraft.world.entity.player.Player;
  * earns CS2's kill award of the weapon used (weapons.vdata m_nKillAward: $300 most guns, $600 SMGs, $900 shotguns,
  * $100 AWP / Zeus, $1500 knives, $300 grenades) for enemy players; killing a teammate costs $300 like CS2. Creative mode buys for free. Money is
  * per player and per world, kept through death; a future round / co-op mode can call {@link #add} for its round rewards.
- * Mobs pay a flat bounty whatever the weapon: hostile mobs {@link #MOB_AWARD}, the Wither {@link #WITHER_AWARD}, the Ender
- * Dragon and the Warden {@link #BOSS_AWARD}. In Counter-Craft (hardcore co-op) killing any player costs
- * {@link #HARDCORE_KILL_PENALTY}.
+ * Mobs pay a bounty whatever the weapon ({@link #mobAward}): each hostile mob its own ({@link #MOB_AWARDS}, any other
+ * {@link #MOB_AWARD}), plus bonuses for how it died; the Wither {@link #WITHER_AWARD}, the Ender Dragon and the Warden
+ * {@link #BOSS_AWARD}, to everyone who fought them ({@link dev.countercraft.BossFights}). In Counter-Craft (hardcore
+ * co-op) killing any player costs {@link #HARDCORE_KILL_PENALTY}.
  */
 public final class Economy {
 	/** Knife kill award (weapons.vdata knife prefab). */
 	private static final int KNIFE_AWARD = 1500;
 	/** HE / molotov / incendiary kill award. */
 	private static final int GRENADE_AWARD = 300;
-	/** Mob bounties (any weapon). */
+	/** A hostile mob not in {@link #MOB_AWARDS}. */
 	public static final int MOB_AWARD = 15;
+	/** Hostile mobs' bounties (Counter-Craft's own, any weapon). */
+	private static final java.util.Map<net.minecraft.world.entity.EntityType<?>, Integer> MOB_AWARDS = java.util.Map.ofEntries(
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.CREEPER, 25),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.ZOMBIE, 10),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.HUSK, 10),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.DROWNED, 10),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.ZOMBIE_VILLAGER, 10),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.SKELETON, 30),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.STRAY, 30),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.PARCHED, 30),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.BOGGED, 30),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.ENDERMAN, 50),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.WITHER_SKELETON, 25),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.PILLAGER, 35),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.EVOKER, 100),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.RAVAGER, 150),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.GHAST, 75),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.BLAZE, 40),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.WITCH, 50),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.VINDICATOR, 40),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.SPIDER, 10),
+			java.util.Map.entry(net.minecraft.world.entity.EntityTypes.CAVE_SPIDER, 10));
+	/** On top of a mob's bounty, by the kill feed's flags: the killer in the air, a headshot, through a wall, blinded. */
+	private static final int AIRBORNE_BONUS = 10;
+	private static final int HEADSHOT_BONUS = 5;
+	private static final int WALLBANG_BONUS = 10;
+	private static final int BLIND_BONUS = 25;
+	/** A mob from a monster spawner pays a quarter (-75%), bonuses included; an enderman in the End a flat $5. */
+	private static final float SPAWNER_SHARE = 0.25f;
+	private static final int END_ENDERMAN_AWARD = 5;
+	/** A mob a monster spawner made (set as it spawns, kept with it). */
+	public static final AttachmentType<Boolean> FROM_SPAWNER = AttachmentRegistry.<Boolean>builder()
+			.persistent(Codec.BOOL)
+			.buildAndRegister(CounterCraft.id("from_spawner"));
 	public static final int WITHER_AWARD = 1500;
 	public static final int BOSS_AWARD = 2500;
 	/** Counter-Craft (hardcore co-op): killing any player costs this, and players resist other players' damage 3x. */
@@ -121,8 +156,56 @@ public final class Economy {
 		return gun != null ? gun.spec().killAward() : 0;
 	}
 
-	/** A player killed something with {@code weapon}: CS2's kill award, or the teammate penalty. */
-	public static void onKill(ServerPlayer killer, LivingEntity victim, String weapon) {
+	/**
+	 * A hostile mob's bounty for a kill with these kill feed {@code flags}, and what it's for ("" if nothing): its own
+	 * bounty plus the bonuses, a quarter of that from a spawner; an enderman in the End pays a flat
+	 * {@link #END_ENDERMAN_AWARD}. 0 for anything that isn't hostile.
+	 */
+	static int mobAward(LivingEntity victim, int flags, StringBuilder why) {
+		String name = victim.getType().getDescription().getString();
+		if (victim.getType() == net.minecraft.world.entity.EntityTypes.ENDERMAN && victim.level().dimension() == net.minecraft.world.level.Level.END) {
+			why.append("for killing an ").append(name).append(" in the End");
+			return END_ENDERMAN_AWARD;
+		}
+		Integer base = MOB_AWARDS.get(victim.getType());
+		if (base == null) {
+			if (!(victim instanceof Enemy)) {
+				return 0;
+			}
+			base = MOB_AWARD;
+		}
+		int award = base;
+		java.util.List<String> extra = new java.util.ArrayList<>();
+		if ((flags & dev.countercraft.net.KillFeedPayload.F_HEADSHOT) != 0) {
+			award += HEADSHOT_BONUS;
+			extra.add("headshot +$" + HEADSHOT_BONUS);
+		}
+		if ((flags & dev.countercraft.net.KillFeedPayload.F_INAIR) != 0) {
+			award += AIRBORNE_BONUS;
+			extra.add("airborne +$" + AIRBORNE_BONUS);
+		}
+		if ((flags & dev.countercraft.net.KillFeedPayload.F_PENETRATE) != 0) {
+			award += WALLBANG_BONUS;
+			extra.add("wallbang +$" + WALLBANG_BONUS);
+		}
+		if ((flags & dev.countercraft.net.KillFeedPayload.F_BLIND) != 0) {
+			award += BLIND_BONUS;
+			extra.add("blind +$" + BLIND_BONUS);
+		}
+		boolean spawner = Boolean.TRUE.equals(victim.getAttached(FROM_SPAWNER));
+		if (spawner) {
+			award = Math.round(award * SPAWNER_SHARE);
+			extra.add("from a spawner: -75%");
+		}
+		why.append("for killing ").append(name.matches("(?i)^[aeiou].*") ? "an " : "a ").append(name);
+		if (!extra.isEmpty()) {
+			why.append(" (").append(String.join(", ", extra)).append(")");
+		}
+		return award;
+	}
+
+	/** A player killed something with {@code weapon}: CS2's kill award, or the teammate penalty; a mob's bounty. */
+	public static void onKill(ServerPlayer killer, LivingEntity victim, String weapon, int flags) {
 		if (killer == victim || freeBuy(killer)) {
 			return;
 		}
@@ -140,20 +223,12 @@ public final class Economy {
 				award = killAward(weapon);
 				why = "for neutralizing an enemy";
 			}
-		} else if (victim instanceof net.minecraft.world.entity.boss.wither.WitherBoss) {
-			award = WITHER_AWARD;
-			why = "for killing the Wither";
-		} else if (victim instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon) {
-			award = BOSS_AWARD;
-			why = "for killing the Ender Dragon";
-		} else if (victim instanceof net.minecraft.world.entity.monster.warden.Warden) {
-			award = BOSS_AWARD;
-			why = "for killing the Warden";
-		} else if (victim instanceof Enemy) {
-			award = MOB_AWARD;
-			why = "for killing a hostile mob";
+		} else if (dev.countercraft.BossFights.bounty(victim) > 0) {
+			return; // everyone who fought it is paid (BossFights)
 		} else {
-			return;
+			StringBuilder w = new StringBuilder();
+			award = mobAward(victim, flags, w);
+			why = w.toString();
 		}
 		if (award == 0) {
 			return;

@@ -27,7 +27,46 @@ public final class MuzzleLight {
 	private static volatile Light light;
 	private static long until;
 
+	/** A burning molotov / incendiary pool lights up like fire: 15 at the flames, 1 less per block. */
+	private static final int FIRE_LEVEL = 15;
+	private static final double FIRE_FALLOFF = 1.0;
+	private static final double FIRE_RADIUS = FIRE_LEVEL / FIRE_FALLOFF;
+	/** Burning pools by entity id, and when each was last seen burning (nanoTime): gone 0.3 s, its light goes out. */
+	private static final java.util.Map<Integer, Light> FIRES = new java.util.concurrent.ConcurrentHashMap<>();
+	private static final java.util.Map<Integer, Long> FIRE_SEEN = new java.util.concurrent.ConcurrentHashMap<>();
+
 	private MuzzleLight() {
+	}
+
+	/** Client tick: every burning fire pool in the world lights its surroundings; pools gone out go dark. */
+	public static void tickFires() {
+		Minecraft mc = Minecraft.getInstance();
+		long now = System.nanoTime();
+		if (mc.level != null) {
+			for (var e : mc.level.entitiesForRendering()) {
+				if (e instanceof dev.countercraft.gun.GrenadeEntity g && g.state() == dev.countercraft.gun.GrenadeEntity.BURNING) {
+					Light l = new Light(g.getX(), g.getY() + 0.5, g.getZ());
+					Light old = FIRES.put(g.getId(), l);
+					FIRE_SEEN.put(g.getId(), now);
+					if (old == null || Math.abs(old.x - l.x) > 0.5 || Math.abs(old.y - l.y) > 0.5 || Math.abs(old.z - l.z) > 0.5) {
+						if (old != null) {
+							dirty(old, FIRE_RADIUS);
+						}
+						dirty(l, FIRE_RADIUS);
+					}
+				}
+			}
+		}
+		FIRE_SEEN.entrySet().removeIf(s -> {
+			if (mc.level != null && now - s.getValue() < 300_000_000L) {
+				return false;
+			}
+			Light l = FIRES.remove(s.getKey());
+			if (l != null) {
+				dirty(l, FIRE_RADIUS);
+			}
+			return true;
+		});
 	}
 
 	/** A shot at {@code pos} (world). */
@@ -39,9 +78,9 @@ public final class MuzzleLight {
 		}
 		light = new Light(pos.x, pos.y, pos.z);
 		if (old != null) {
-			dirty(old);
+			dirty(old, RADIUS);
 		}
-		dirty(light);
+		dirty(light, RADIUS);
 	}
 
 	/** Render thread, every frame: put the light out once firing stops. */
@@ -49,13 +88,20 @@ public final class MuzzleLight {
 		Light l = light;
 		if (l != null && System.nanoTime() > until) {
 			light = null;
-			dirty(l);
+			dirty(l, RADIUS);
 		}
 	}
 
-	/** Block light (0-15) the flash adds at {@code pos}. Called from chunk-building threads. */
+	/** Block light (0-15) the flash and burning fire pools add at {@code pos}. Called from chunk-building threads. */
 	public static int at(BlockPos pos) {
-		Light l = light;
+		int best = level(light, pos, LEVEL, FALLOFF);
+		for (Light f : FIRES.values()) {
+			best = Math.max(best, level(f, pos, FIRE_LEVEL, FIRE_FALLOFF));
+		}
+		return best;
+	}
+
+	private static int level(Light l, BlockPos pos, int level, double falloff) {
 		if (l == null) {
 			return 0;
 		}
@@ -63,7 +109,7 @@ public final class MuzzleLight {
 		double dy = pos.getY() + 0.5 - l.y;
 		double dz = pos.getZ() + 0.5 - l.z;
 		double d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-		return d >= RADIUS ? 0 : (int) Math.round(LEVEL - d * FALLOFF);
+		return d >= level / falloff ? 0 : (int) Math.round(level - d * falloff);
 	}
 
 	/** {@code packed} light coords with the flash's block light mixed in. */
@@ -75,12 +121,12 @@ public final class MuzzleLight {
 		return LightCoordsUtil.withBlock(packed, add);
 	}
 
-	private static void dirty(Light l) {
+	private static void dirty(Light l, double radius) {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.levelExtractor == null) {
 			return;
 		}
-		int r = (int) Math.ceil(RADIUS);
+		int r = (int) Math.ceil(radius);
 		int x0 = SectionPos.blockToSectionCoord((int) Math.floor(l.x - r));
 		int x1 = SectionPos.blockToSectionCoord((int) Math.floor(l.x + r));
 		int y0 = SectionPos.blockToSectionCoord((int) Math.floor(l.y - r));

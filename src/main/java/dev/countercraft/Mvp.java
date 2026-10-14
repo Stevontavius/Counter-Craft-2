@@ -30,6 +30,11 @@ public final class Mvp {
 		KITS.remove(p.getUUID());
 	}
 
+	/** {@code p}'s equipped music kit ("" = the default). */
+	public static String kit(ServerPlayer p) {
+		return KITS.getOrDefault(p.getUUID(), "");
+	}
+
 	/** Money for each challenge completed. */
 	public static final int CHALLENGE_REWARD = 500;
 
@@ -41,7 +46,7 @@ public final class Mvp {
 		p.sendSystemMessage(net.minecraft.network.chat.Component.literal("+$" + got + ": Award for completing the challenge " + display.title().getString() + ".")
 				.withColor(0x6FB86F));
 		String team = p.getAttached(dev.countercraft.team.Teams.TEAM);
-		MvpPayload payload = new MvpPayload(p.getGameProfile().name(), team == null ? "" : team, display.title().getString(),
+		MvpPayload payload = new MvpPayload("CHALLENGE COMPLETE", p.getGameProfile().name(), team == null ? "" : team, display.title().getString(),
 				display.description().getString(), KITS.getOrDefault(p.getUUID(), ""));
 		for (ServerPlayer to : p.level().getServer().getPlayerList().getPlayers()) {
 			if (ServerPlayNetworking.canSend(to, MvpPayload.TYPE)) {

@@ -300,7 +300,7 @@ public final class Combat {
 			weapon = "";
 		}
 		if (killer instanceof net.minecraft.server.level.ServerPlayer sp && killer != victim) {
-			dev.countercraft.team.Economy.onKill(sp, victim, weapon);
+			dev.countercraft.team.Economy.onKill(sp, victim, weapon, hit != null ? hit.flags() : 0);
 			dev.countercraft.Achievements.onKill(sp, victim, weapon, hit != null ? hit.flags() : 0);
 			dev.countercraft.RunStats.onKill(sp, victim, weapon, hit != null ? hit.flags() : 0);
 			// an airborne Scout / AWP kill: 5 s without fall damage

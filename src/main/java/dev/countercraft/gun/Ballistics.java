@@ -83,13 +83,13 @@ public final class Ballistics {
 				|| st.is(net.minecraft.tags.BlockTags.BAMBOO_BLOCKS);
 	}
 
-	private static boolean glass(net.minecraft.world.level.block.state.BlockState st) {
+	static boolean glass(net.minecraft.world.level.block.state.BlockState st) {
 		return st.is(net.fabricmc.fabric.api.tag.convention.v2.ConventionalBlockTags.GLASS_BLOCKS)
 				|| st.is(net.fabricmc.fabric.api.tag.convention.v2.ConventionalBlockTags.GLASS_PANES);
 	}
 
 	/** The shooter may break this block (not in adventure mode or spawn protection; mobs: the mobGriefing rule). */
-	private static boolean mayBreak(ServerLevel level, LivingEntity shooter, net.minecraft.core.BlockPos pos) {
+	static boolean mayBreak(ServerLevel level, LivingEntity shooter, net.minecraft.core.BlockPos pos) {
 		if (shooter instanceof net.minecraft.world.entity.player.Player p) {
 			return p.mayBuild() && level.mayInteract(p, pos);
 		}

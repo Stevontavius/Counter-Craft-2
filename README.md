@@ -8,7 +8,7 @@
 
 A free, fan-made Fabric mod for Minecraft: Java Edition.
 
-[![Release](https://img.shields.io/badge/release-BETA%201.2.1-dcb45a?style=flat-square)](../../releases)
+[![Release](https://img.shields.io/badge/release-BETA%201.2.2-dcb45a?style=flat-square)](../../releases)
 [![Minecraft](https://img.shields.io/badge/Minecraft-26.3-62b47a?style=flat-square)](https://www.minecraft.net/)
 [![Fabric](https://img.shields.io/badge/Fabric%20Loader-0.19.5-dbd0b4?style=flat-square)](https://fabricmc.net/)
 [![Java](https://img.shields.io/badge/Java-25-e76f00?style=flat-square)](https://adoptium.net/)
@@ -55,7 +55,8 @@ A free, fan-made Fabric mod for Minecraft: Java Edition.
 - CS2 movement that still answers to Minecraft: Speed, Slowness, Jump Boost, Slow Falling, Levitation, soul sand and
   honey change it as they would in Minecraft.
 - Surf ramps: the 45° slope of any stair, crafted from that stair and a feather. With CS movement you surf them;
-  operators can raise `sv_airaccelerate` (up to 500, saved per world) for surf servers.
+  operators can raise `sv_airaccelerate` (up to 2000) and `sv_maxvelocity` (up to 10000) for surf servers, and turn
+  off the jump penalty with `sv_staminajumpcost 0` / `sv_staminalandcost 0` for bunny hopping. Saved per world.
 - Hardcore co-op with *Another Chance*: spectate your teammates, then respawn at dawn if anyone made it through the night.
   In hardcore, a player list shows where everyone is (or that they're dead), with their skin's face.
 - Terrorist and Counter-Terrorist teams as a cosmetic identity, with agent models, voice lines and radio calls. An
@@ -100,12 +101,12 @@ sell it.
 
 ## Installation
 
-1. Download **`CC2-Installer-Beta-1.2.1-Windows.zip`** from [Releases](../../releases) and unzip it.
+1. Download **`CC2-Installer-Beta-1.2.2-Windows.zip`** from [Releases](../../releases) and unzip it.
 2. Open the **Counter-Craft 2 Installer** folder and double-click **`Counter-Craft 2 Installer.exe`**. If Windows says it
    protected your PC, choose **More info**, then **Run anyway** (the installer isn't code-signed).
 
-   Not on Windows, or rather have a single file? **`CC2-Installer-Beta-1.2.1-Universal.jar`** is the same installer without
-   the app around it: double-click it, or run `java -jar CC2-Installer-Beta-1.2.1-Universal.jar`. It needs Java 25; if
+   Not on Windows, or rather have a single file? **`CC2-Installer-Beta-1.2.2-Universal.jar`** is the same installer without
+   the app around it: double-click it, or run `java -jar CC2-Installer-Beta-1.2.2-Universal.jar`. It needs Java 25; if
    whatever Java opens it is older, it finds a Java 25 on your PC (Minecraft's own counts) and opens with that.
 3. Read the notices and licenses, then go through the steps:
 
@@ -132,7 +133,7 @@ Worlds and settings stay as they are.
 
 A server needs:
 
-1. **`CC2-Server-Beta-1.2.1.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
+1. **`CC2-Server-Beta-1.2.2.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
    (Minecraft 26.3, Fabric Loader 0.19.5).
 2. **The weapon table**: copy `config/countercraft/weapons.json` from a Counter-Craft 2 install into the server's
    `config/countercraft/` folder.
@@ -185,8 +186,8 @@ Yes. Please credit Counter-Craft 2, and follow Mojang's and Valve's own rules fo
 <summary><b>Double-clicking the Universal jar does nothing</b></summary>
 
 Windows is opening `.jar` files without `-jar` (this happens after choosing Java through "Open with"). Use the Windows
-download (`CC2-Installer-Beta-1.2.1-Windows.zip`, double-click `Counter-Craft 2 Installer.exe`), or run
-`java -jar CC2-Installer-Beta-1.2.1-Universal.jar` in a terminal.
+download (`CC2-Installer-Beta-1.2.2-Windows.zip`, double-click `Counter-Craft 2 Installer.exe`), or run
+`java -jar CC2-Installer-Beta-1.2.2-Universal.jar` in a terminal.
 </details>
 
 <details>

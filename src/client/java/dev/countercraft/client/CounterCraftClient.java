@@ -96,11 +96,13 @@ public class CounterCraftClient implements ClientModInitializer {
 			GunClient.infiniteAmmo = payload.infiniteAmmo();
 			dev.countercraft.movement.CsMove.maxVelocity = payload.maxVelocity();
 			dev.countercraft.movement.CsMove.airAccelerate = payload.airAccelerate();
+			dev.countercraft.movement.CsMove.stamina(payload.staminaMax(), payload.staminaJumpCost(), payload.staminaLandCost());
 		});
 		ClientPlayNetworking.registerGlobalReceiver(RadioFxPayload.TYPE, (payload, context) -> RadioClient.onRadio(payload));
 		ClientPlayNetworking.registerGlobalReceiver(PingPayload.TYPE, (payload, context) -> Pings.onPing(payload));
 		ClientTickEvents.START_CLIENT_TICK.register(Pings::startTick);
 		ClientTickEvents.END_CLIENT_TICK.register(RadioWheel::tick);
+		ClientTickEvents.END_CLIENT_TICK.register(c -> dev.countercraft.client.fx.MuzzleLight.tickFires()); // burning molotovs light up
 		HudElementRegistry.addLast(CounterCraft.id("radio_wheel"), (g, delta) -> RadioWheel.render(g));
 		HudElementRegistry.addLast(CounterCraft.id("round_banner"), (g, delta) -> dev.countercraft.client.hud.RoundCycle.renderBanner(g));
 		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.RunStatsPayload.TYPE,
