@@ -318,10 +318,11 @@ public final class GunClient {
 			}
 		} else if (altPressed) {
 			ClientPlayNetworking.send(AltPayload.INSTANCE);
-			if ("detachable".equals(spec.silencer()) && animator != null && reloadEnd == null && tick >= nextShot) {
+			if ("detachable".equals(spec.silencer()) && animator != null && reloadEnd == null && tick >= nextShot
+					&& !stack.has(ModComponents.SILENCER_AT)) {
 				boolean off = stack.getOrDefault(ModComponents.SILENCER_OFF, false);
 				animator.play(off ? "silencer_on" : "silencer_off", 1f);
-				nextShot = tick + 40;
+				nextShot = tick + spec.silencerTicks(off); // the server's wait: until it's on / off
 			}
 		}
 

@@ -137,6 +137,7 @@ def load():
         g["punch"] = camera_punch(gid, g)
         if g["singleShellReload"]:
             g["shellReload"] = shell_reload(clip_dir(gid, w))
+        anim_times(g, clip_dir(gid, w))
         g["fx"] = shot_fx(w, clip_dir(gid, w))
         out.append(g)
     return out
@@ -306,6 +307,90 @@ def shell_reload(folder):
             "outro": round(sync["WPN_RELOAD_OUTRO"][1] * dur, 4)}
 
 
+# the clips anim_times reads, as convert.ROLE_RULES picks them: (dump name prefixes, disqualifying substrings)
+RELOAD_CLIP = (("reload_",), ("empty", "reload2", "lgcy"))
+RELOAD_EMPTY_CLIP = (("reload_empty_", "empty_reload_"), ("reload2",))
+SILENCER_CLIPS = ((("silencer_attach_",), ()), (("silencer_detach_",), ()))
+
+
+def _dump(name, rule):
+    """A clip's dump text (and its duration) by its role's naming rule, or (None, 0)."""
+    prefixes, bad = rule
+    for pre in prefixes:
+        for p in sorted(glob.glob(os.path.join(DUMPS, f"{name}__{pre}*.clip.txt"))):
+            if not any(b in os.path.basename(p).split("__")[1] for b in bad):
+                t = open(p, encoding="utf-8").read()
+                return t, float(re.search(r"^	m_flDuration = ([\d.e-]+)", t, re.M).group(1))
+    return None, 0.0
+
+
+def _event(text, event_id):
+    """Where a clip's ID event starts, as a fraction of the clip, or None."""
+    for ev in (text or "").split("_class = ")[1:]:
+        if f'm_ID = "{event_id}"' in ev:
+            return float(re.search(r"m_flStartTime =\s*\{\s*m_flValue = ([\d.e-]+)", ev).group(1))
+    return None
+
+
+def anim_times(g, folder):
+    """What the mod times by the viewmodel animation, from CS2's own clip events: a magazine reload puts the rounds in
+    at its WPN_RELOAD_ADD_AMMO event ("reloadAmmoAt": fractions of the reload, [reload, empty reload]; the mod plays the
+    clip over reloadTime), and a silencer goes on / off at WPN_SILENCER_ATTACH / _DETACH ("silencerAt": seconds,
+    [attach, detach]). Left out when the clips or events aren't there (the mod then waits for the end)."""
+    name = folder.split("/")[-1]
+    if not g["singleShellReload"] and not g["exhaustible"]:
+        full = _event(_dump(name, RELOAD_CLIP)[0], "WPN_RELOAD_ADD_AMMO")
+        empty_text = _dump(name, RELOAD_EMPTY_CLIP)[0]
+        empty = _event(empty_text, "WPN_RELOAD_ADD_AMMO") if empty_text else full  # no empty clip: the reload one plays
+        if full is not None or empty is not None:
+            g["reloadAmmoAt"] = [None if f is None else round(f, 4) for f in (full, empty)]
+    if g["silencer"] == "detachable":
+        at = []
+        for rule, ev in zip(SILENCER_CLIPS, ("WPN_SILENCER_ATTACH", "WPN_SILENCER_DETACH")):
+            text, dur = _dump(name, rule)
+            f = _event(text, ev)
+            at.append(round(f * dur, 4) if f is not None else None)
+        if any(a is not None for a in at):
+            g["silencerAt"] = at
+
+
+# Weapon table versions (build_pack.STEPS "weapontable"): what each changed, for an update that patches the pack's own
+# table instead of making it again (that needs every clip and particle the full build exported). 2: anim_times.
+def _patch_anim_times(table, cs2):
+    """Dump only the clips anim_times reads (a few per gun, straight from the VPK), then add its fields."""
+    import cosmetics
+    root = kv3.loads(open(VDATA, encoding="utf-8").read())
+    files = cosmetics.listing(cs2)
+    os.makedirs(DUMPS, exist_ok=True)
+    for g in table["weapons"]:
+        folder = clip_dir(g["id"], kv3.resolve(root, f"weapon_{g['id']}_prefab"))
+        prefix = f"animation/anims/viewmodel/{folder}/"
+        name = folder.split("/")[-1]
+        clips = sorted(f[len(prefix):-len(".vnmclip_c")] for f in files
+                       if f.startswith(prefix) and f.endswith(".vnmclip_c") and "/" not in f[len(prefix):] and "+" not in f)
+        for prefixes, bad in (RELOAD_CLIP, RELOAD_EMPTY_CLIP, *SILENCER_CLIPS):
+            hit = next((c for pre in prefixes for c in clips if c.startswith(pre) and not any(b in c for b in bad)), None)
+            out = os.path.join(DUMPS, f"{name}__{hit}.clip.txt")
+            if hit and not os.path.exists(out):
+                with open(out, "w", encoding="utf-8") as f:
+                    f.write(cosmetics.vrf(cs2, "-b", "DATA", "-f", prefix + hit + ".vnmclip_c"))
+        anim_times(g, folder)
+
+
+CHANGED = {2: _patch_anim_times}
+
+
+def patch(out, since, cs2):
+    """An update's weapon table: the pack's own, with what each newer version changed added to it."""
+    old, new = (int(v) for v in since.split(":"))
+    table = json.load(open(out, encoding="utf-8"))
+    for v in range(old + 1, new + 1):
+        if v in CHANGED:
+            CHANGED[v](table, cs2)
+    json.dump(table, open(out, "w", encoding="utf-8"), indent=1)
+    print(f"patched {out}: weapon table version {old} -> {new}")
+
+
 # Flash systems whose fire layer the extractor can't read (built from other operators): drawn like the closest family
 FLASH_FALLBACK = {"weapon_muzzleflash_snip_fps": "uweapon_muzflsh_riffle_lrg_fps", "weapon_muzzleflash_snip_ar_fps": "uweapon_muzflsh_riffle_lrg_fps",
                   "uweapon_muzflsh_mach_fps": "uweapon_muzflsh_riffle_lrg_fps", "uweapon_muzflsh_aug_fps": "uweapon_muzflsh_riffle_fps",
@@ -392,7 +477,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=None, help="write the weapon table here (the asset pack build); default: the dev copy, with "
                                                 "the item models and names in the mod's sources")
-    out = ap.parse_args().out or OUT
+    ap.add_argument("--since", default=None, help="OLD:NEW: an update: patch the table at --out from version OLD to NEW (CHANGED)")
+    ap.add_argument("--cs2", default=None, help="Counter-Strike 2's folder (what --since reads clips from)")
+    args = ap.parse_args()
+    out = args.out or OUT
+    if args.since:
+        return patch(out, args.since, os.path.join(args.cs2, "game", "csgo", "pak01_dir.vpk"))
     guns = load()
     melee, grenades = load_extra()
     if out == OUT:

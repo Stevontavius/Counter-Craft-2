@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
 public class CounterCraft implements ModInitializer {
 	public static final String MOD_ID = "countercraft";
 	/** The release name players see ("BETA 1.1"); the jar's version (fabric.mod.json) stays a plain number for Fabric and the build. */
-	public static final String RELEASE = "BETA 1.2.2";
+	public static final String RELEASE = "BETA 1.2.3";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_ID);
 
 	/** Damage types (data/countercraft/damage_type/*.json); all bypass vanilla armor and i-frames, like CS2. */
@@ -68,6 +68,8 @@ public class CounterCraft implements ModInitializer {
 	public static final ResourceKey<DamageType> FIRE = ResourceKey.create(Registries.DAMAGE_TYPE, id("fire"));
 	/** The Zeus: not a projectile (an enderman can't dodge it, unlike bullets). */
 	public static final ResourceKey<DamageType> TASER = ResourceKey.create(Registries.DAMAGE_TYPE, id("taser"));
+	/** Zeusing the water you're in (WaterShock): no attacker, so no team or PvP rule stops it. */
+	public static final ResourceKey<DamageType> SHOCK = ResourceKey.create(Registries.DAMAGE_TYPE, id("shock"));
 
 	public static final EntityType<GrenadeEntity> GRENADE_ENTITY = Registry.register(BuiltInRegistries.ENTITY_TYPE, id("grenade"),
 			EntityType.Builder.<GrenadeEntity>of(GrenadeEntity::new, MobCategory.MISC).sized(0.1f, 0.1f).clientTrackingRange(8)

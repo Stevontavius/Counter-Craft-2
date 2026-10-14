@@ -47,8 +47,6 @@ public class GunItem extends Item implements CsWeapon {
 	public static final int TASER_RECHARGE_TICKS = 600;
 	/** R8 primary fire: the hammer is pulled for 0.2 s once the gun is ready (measured: held-trigger shots 0.70 s apart). */
 	public static final int REVOLVER_PREP_TICKS = 4;
-	/** Silencer on/off takes about two seconds in CS2. */
-	private static final int SILENCER_TICKS = 40;
 	private static final Identifier SCOPE_SPEED = CounterCraft.id("scope_speed");
 
 	private final GunSpec spec;
@@ -331,6 +329,7 @@ public class GunItem extends Item implements CsWeapon {
 			stack.set(ModComponents.NEXT_SHOT, Math.max(stack.getOrDefault(ModComponents.NEXT_SHOT, 0.0), now + spec.reloadTime() * 20.0));
 		} else {
 			stack.set(ModComponents.RELOAD_END, now + spec.reloadTicks());
+			stack.set(ModComponents.RELOAD_AMMO_AT, now + spec.reloadAmmoTicks(ammo == 0)); // the client plays the empty reload at 0 too
 		}
 		stack.set(ModComponents.ZOOM, 0); // reloading unzooms, like CS2
 		stack.remove(ModComponents.REZOOM_AT);
@@ -341,6 +340,7 @@ public class GunItem extends Item implements CsWeapon {
 		stack.remove(ModComponents.RELOAD_END);
 		stack.remove(ModComponents.RELOAD_START);
 		stack.remove(ModComponents.RELOAD_SHELLS);
+		stack.remove(ModComponents.RELOAD_AMMO_AT);
 	}
 
 	/** Alt-fire key: cycle the scope, toggle burst, or screw the silencer on/off. */
@@ -364,12 +364,29 @@ public class GunItem extends Item implements CsWeapon {
 			stack.set(ModComponents.BURST, b);
 			player.sendOverlayMessage(Component.literal(b ? "Switched to burst-fire mode" : "Switched to " + (spec.automatic() ? "automatic" : "semi-automatic")));
 		} else if ("detachable".equals(spec.silencer())) {
-			if (stack.has(ModComponents.RELOAD_END) || now < stack.getOrDefault(ModComponents.NEXT_SHOT, 0.0)) {
+			if (stack.has(ModComponents.RELOAD_END) || stack.has(ModComponents.SILENCER_AT) || now < stack.getOrDefault(ModComponents.NEXT_SHOT, 0.0)) {
 				return;
 			}
+			// on / off only once the animation has screwed it there (inventoryTick); switching away first cancels it
+			int t = spec.silencerTicks(stack.getOrDefault(ModComponents.SILENCER_OFF, false));
+			stack.set(ModComponents.SILENCER_AT, now + t);
+			stack.set(ModComponents.NEXT_SHOT, (double) (now + t));
+		}
+	}
+
+	/**
+	 * The silencer being screwed on / off gets there, or the change is cancelled: out of the hand, or ticked late (it was
+	 * somewhere that doesn't tick it, like a chest, or the player left).
+	 */
+	private static void silencerTick(ItemStack stack, ServerPlayer player, boolean mainhand, long now) {
+		Long at = stack.get(ModComponents.SILENCER_AT);
+		if (at == null || mainhand && now < at) {
+			return;
+		}
+		stack.remove(ModComponents.SILENCER_AT);
+		if (mainhand && now <= at + 1) {
 			boolean off = !stack.getOrDefault(ModComponents.SILENCER_OFF, false);
 			stack.set(ModComponents.SILENCER_OFF, off);
-			stack.set(ModComponents.NEXT_SHOT, (double) (now + SILENCER_TICKS));
 			player.sendOverlayMessage(Component.literal(off ? "Silencer removed" : "Silencer attached"));
 		}
 	}
@@ -379,6 +396,7 @@ public class GunItem extends Item implements CsWeapon {
 		long now = level.getGameTime();
 		boolean mainhand = slot == EquipmentSlot.MAINHAND;
 		if (entity instanceof ServerPlayer player) {
+			silencerTick(stack, player, mainhand, now);
 			if (mainhand) {
 				scopeSpeed(player, stack);
 				Long rezoom = stack.get(ModComponents.REZOOM_AT);
@@ -436,15 +454,32 @@ public class GunItem extends Item implements CsWeapon {
 			}
 			return;
 		}
+		if (!spec.singleShellReload()) {
+			// a magazine: the rounds go in where the clip shows it going in (so switching away after that keeps them);
+			// firing still waits for the reload's end, as in CS2
+			Long in = stack.get(ModComponents.RELOAD_AMMO_AT);
+			if (in != null && now >= Math.min(in, end)) {
+				int take = Math.min(spec.magSize() - ammo, reserve);
+				stack.set(ModComponents.AMMO, ammo + take);
+				if (ServerCvars.infiniteAmmo != 2) {
+					stack.set(ModComponents.RESERVE, reserve - take);
+				}
+				stack.remove(ModComponents.RELOAD_AMMO_AT);
+			}
+			if (now >= end) {
+				stack.remove(ModComponents.RELOAD_END);
+			}
+			return;
+		}
 		if (now < end) {
 			return;
 		}
-		int take = spec.singleShellReload() ? Math.min(1, reserve) : Math.min(spec.magSize() - ammo, reserve);
+		int take = Math.min(1, reserve);
 		stack.set(ModComponents.AMMO, ammo + take);
 		if (ServerCvars.infiniteAmmo != 2) {
 			stack.set(ModComponents.RESERVE, reserve - take);
 		}
-		if (spec.singleShellReload() && ammo + take < spec.magSize() && reserve - take > 0) {
+		if (ammo + take < spec.magSize() && reserve - take > 0) {
 			stack.set(ModComponents.RELOAD_END, now + spec.reloadTicks()); // next shell
 		} else {
 			stack.remove(ModComponents.RELOAD_END);

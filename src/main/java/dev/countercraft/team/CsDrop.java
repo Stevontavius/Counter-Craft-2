@@ -58,6 +58,8 @@ public final class CsDrop {
 		}
 		out.remove(ModComponents.RELOAD_START);
 		out.remove(ModComponents.RELOAD_SHELLS);
+		out.remove(ModComponents.RELOAD_AMMO_AT);
+		out.remove(ModComponents.SILENCER_AT); // a silencer half screwed on / off stays as it was
 		out.remove(ModComponents.REZOOM_AT);
 		if (out.has(ModComponents.ZOOM)) {
 			out.set(ModComponents.ZOOM, 0);

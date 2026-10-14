@@ -48,7 +48,11 @@ public final class Ballistics {
 		right = right.lengthSqr() < 1e-8 ? new Vec3(1, 0, 0) : right.normalize();
 		Vec3 up = right.cross(aim).normalize();
 		Vec3 dir = aim.add(right.scale(spreadOffset[0])).add(up.scale(spreadOffset[1])).normalize();
-		return shoot(level, shooter, spec, shooter.getEyePosition(), dir);
+		ShotResult r = shoot(level, shooter, spec, shooter.getEyePosition(), dir);
+		if (spec.taser()) {
+			WaterShock.after(level, shooter, spec, shooter.getEyePosition(), r);
+		}
+		return r;
 	}
 
 	/** Minecraft rotation (degrees; xRot positive = down) to a unit look vector. */
@@ -192,7 +196,7 @@ public final class Ballistics {
 	}
 
 	/** The bullet hits {@code entity} with {@code through} of its damage left; a miss result when it's deflected. */
-	private static ShotResult hit(ServerLevel level, LivingEntity shooter, GunSpec spec, Vec3 from, EntityHit entity, float through,
+	static ShotResult hit(ServerLevel level, LivingEntity shooter, GunSpec spec, Vec3 from, EntityHit entity, float through,
 			boolean penetrated) {
 		Entity target = entity.entity();
 		Vec3 hit = entity.point();

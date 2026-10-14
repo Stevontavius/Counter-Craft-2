@@ -106,6 +106,8 @@
   "entity.countercraft.dropped_weapon": "Dropped weapon",
   "death.attack.countercraft.taser": "%1$s was tased by %2$s",
   "death.attack.countercraft.taser.item": "%1$s was tased by %2$s using %3$s",
+  "death.attack.countercraft.shock": "%1$s shocked the water they were in",
+  "death.attack.countercraft.shock.player": "%1$s shocked the water they were in while fighting %2$s",
   "block.countercraft.acacia_surf_ramp": "Acacia Surf Ramp",
   "block.countercraft.andesite_surf_ramp": "Andesite Surf Ramp",
   "block.countercraft.bamboo_mosaic_surf_ramp": "Bamboo Mosaic Surf Ramp",

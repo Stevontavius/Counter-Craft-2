@@ -32,6 +32,15 @@ public final class ModComponents {
 			new DataComponentType.Builder<Long>().persistent(Codec.LONG).networkSynchronized(ByteBufCodecs.VAR_LONG).build());
 	public static final DataComponentType<Integer> RELOAD_SHELLS = register("reload_shells",
 			new DataComponentType.Builder<Integer>().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());
+	/**
+	 * Magazine reload: game time the rounds go in (where the clip shows the magazine in); absent once they are. Firing
+	 * still waits for RELOAD_END.
+	 */
+	public static final DataComponentType<Long> RELOAD_AMMO_AT = register("reload_ammo_at",
+			new DataComponentType.Builder<Long>().persistent(Codec.LONG).networkSynchronized(ByteBufCodecs.VAR_LONG).build());
+	/** USP-S / M4A1-S: game time the silencer being screwed on / off is (SILENCER_OFF flips then); absent otherwise. */
+	public static final DataComponentType<Long> SILENCER_AT = register("silencer_at",
+			new DataComponentType.Builder<Long>().persistent(Codec.LONG).networkSynchronized(ByteBufCodecs.VAR_LONG).build());
 	/** Scope zoom level (0 = unzoomed). */
 	public static final DataComponentType<Integer> ZOOM = register("zoom",
 			new DataComponentType.Builder<Integer>().persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT).build());

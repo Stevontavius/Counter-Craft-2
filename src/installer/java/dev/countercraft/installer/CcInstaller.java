@@ -46,7 +46,7 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 
 /**
- * Counter-Craft 2's installer (BETA 1.2.2): builds the asset pack from the player's own Counter-Strike 2 install (and
+ * Counter-Craft 2's installer (BETA 1.2.3): builds the asset pack from the player's own Counter-Strike 2 install (and
  * CS:GO's, for its weapon sounds) with the converter (converter/build_pack.py), or updates one by its manifest, then
  * installs the mod and the pack into one launcher's Counter-Craft 2 profile or instance (Install) and checks the result.
  * Pages: Welcome, Notices (agreed to before going on), Counter-Strike, Destination, Review, Progress, Finish; in the look
@@ -99,7 +99,7 @@ public final class CcInstaller extends JComponent {
 	private static final String[] PAGES = {"Welcome", "Notices", "Counter-Strike", "Destination", "Review", "Progress", "Finish"};
 	private static final String[] HELP = {"Counter-Craft 2 " + Install.RELEASE + ". Press Next to install, or update an install below.",
 			"Read the notices, tick the box, then press I Agree & Continue.", "Where your Counter-Strike games are, the weapon sounds, and the asset pack.",
-			"The one launcher Counter-Craft 2 goes into.", "Check the plan, then start it.",
+			"The one launcher, or the folder, Counter-Craft 2 goes into.", "Check the plan, then start it.",
 			"You can keep using your PC while it works. Games may stutter while the pack builds.", "How to start playing."};
 	private static final int WELCOME = 0;
 	private static final int NOTICES = 1;
@@ -108,15 +108,17 @@ public final class CcInstaller extends JComponent {
 	private static final int REVIEW = 4;
 	private static final int PROGRESS = 5;
 	private static final int FINISH = 6;
-	// the asset pack: build one, use one already built, or update one
+	// the asset pack: build one, use one already built, update one, or (not recommended) none
 	private static final int BUILD = 0;
 	private static final int EXISTING = 1;
 	private static final int UPDATE = 2;
-	// the launcher
+	private static final int SKIP = 3;
+	// the launcher, or a folder of its own
 	private static final int OFFICIAL = 0;
 	private static final int PRISM = 1;
 	private static final int MULTIMC = 2;
-	private static final String[] LAUNCHERS = {"the Minecraft Launcher", "Prism Launcher", "MultiMC"};
+	private static final int PORTABLE = 3;
+	private static final String[] LAUNCHERS = {"the Minecraft Launcher", "Prism Launcher", "MultiMC", "a portable folder"};
 	/** Weapon sounds: 0 CS2's, 1 both, 2 CS:GO's only (Install.audio's numbers); build_pack.py's --audio. */
 	private static final String[] AUDIO_ARG = {"cs2", "both", "csgo"};
 	private static final int[] MEMORY_GB = {4, 6, 8, 12, 16};
@@ -135,7 +137,9 @@ public final class CcInstaller extends JComponent {
 			Map.entry("CS:GO weapon sounds", 42), Map.entry("manifest", 180),
 			// an update's finishes: only those its new version changed, with their inputs re-extracted (measured: BETA 1.2's
 			// 18 Damascus knives, 91 s)
-			Map.entry("Weapon finishes (changed only)", 120));
+			Map.entry("Weapon finishes (changed only)", 120),
+			// BETA 1.2.3's weapon table patch: the reload / silencer clips' events read straight from the VPK (measured: 15 s)
+			Map.entry("Weapon table (changed only)", 20));
 	private static final String[] BUILD_STEPS = {"CS2 weapon data", "Cosmetics catalog", "Weapons, sounds, HUD", "Weapon table", "Agents",
 			"Ragdolls", "Agent eyes", "Death cam", "Map art", "Legacy weapon models", "Weapon finishes", "Glove finishes", "Music kits",
 			"Shading maps"};
@@ -179,7 +183,11 @@ public final class CcInstaller extends JComponent {
 	private int launcher = -1;
 	private Path prism;
 	private Path multimc;
+	private Path portable;
 	private Path existing;
+	/** Skip the asset pack? The dialog that talks the player out of it is open; its "I know what I'm doing" box. */
+	private boolean skipAsk;
+	private boolean skipSure;
 	private boolean updateFirst;
 	private int memory;
 	private boolean showLicenses;
@@ -227,6 +235,7 @@ public final class CcInstaller extends JComponent {
 	private Path opened;
 	private int doneLauncher;
 	private boolean doneUpdate;
+	private boolean doneSkip;
 	private volatile boolean existingAtStart;
 	// installer updates: a newer release with an installer (checked on GitHub in the background at start), its download
 	private Updates.Release newer;
@@ -287,6 +296,25 @@ public final class CcInstaller extends JComponent {
 		shot(ui, dir.resolve("page2-build.png")); // lays the page out, so it can scroll
 		ui.scroll = 360;
 		shot(ui, dir.resolve("page2-build.png"));
+		ui.skipAsk = true;
+		shot(ui, dir.resolve("page2-skip-dialog.png"));
+		ui.skipAsk = false;
+		ui.mode = SKIP;
+		ui.scroll = 0;
+		ui.dirty = true;
+		ui.go(SOURCE);
+		ui.scroll = 360;
+		shot(ui, dir.resolve("page2-skipped.png"));
+		ui.launcher = PORTABLE;
+		ui.portable = dir.resolve("portable");
+		ui.dirty = true;
+		ui.go(DEST);
+		shot(ui, dir.resolve("page3-portable.png"));
+		ui.go(REVIEW);
+		shot(ui, dir.resolve("page4-portable-skipped.png"));
+		ui.mode = BUILD;
+		ui.launcher = ui.official != null ? OFFICIAL : PRISM;
+		ui.dirty = true;
 		ui.start(true);
 		long now = System.currentTimeMillis();
 		ui.runStart = now - 25 * 60_000;
@@ -443,8 +471,100 @@ public final class CcInstaller extends JComponent {
 			fill(g, W - 8, by, 4, bar, 0x90DCB45A);
 		}
 		nav(g);
+		if (skipAsk) {
+			skipDialog(g);
+		}
 		footer(g);
 		g.dispose();
+	}
+
+	/**
+	 * Over everything (only its own buttons work): why the asset pack can't be skipped without breaking Counter-Craft 2,
+	 * what skipping is for, and Skip It Anyway only once "I know what I'm doing" is ticked.
+	 */
+	private void skipDialog(Graphics2D g) {
+		hits.clear();
+		fill(g, 0, 0, W, H - FOOTER, 0xC8000000);
+		hit(0, 0, W, H - FOOTER, null, null); // the page underneath doesn't react
+		int w = 700;
+		int x = (W - w) / 2;
+		int tx = x + 28;
+		int cw = w - 56;
+		String intro = "Counter-Craft 2 doesn't work without it. The mod can't come with Counter-Strike's files, so the installer builds them "
+				+ "from your own copy of Counter-Strike 2. That's the asset pack.";
+		String[] why = {
+				"Minecraft won't start. Every gun's damage, fire rate, recoil and price is in the weapon table, and the weapon table comes "
+						+ "from the pack (made from your own Counter-Strike 2). Without config/countercraft/weapons.json, Counter-Craft 2 stops "
+						+ "Minecraft while it loads.",
+				"Even with the weapon table copied in by hand, nothing looks or sounds like Counter-Strike: no weapon, knife, glove or agent "
+						+ "models, no skins, no gunshots or music kits, no HUD art. What's missing shows as purple-and-black squares, or not at all.",
+				"Nothing in the game can fix that. Only the pack can: built by this installer, or copied in from one you built."};
+		String[] only = {
+				"you'll copy in a pack you built yourself: its " + Install.PACK + " folder into resourcepacks, and its "
+						+ Install.WEAPONS + " into config/countercraft.",
+				"you're setting the mod up by hand somewhere, and you know what it still needs."};
+		String tip = "Built a pack before, on this PC or another one? Choose \"Use a pack I already built\" instead: the installer copies it in "
+				+ "and checks it for you.";
+		int h = 28 + 34 + wrap(intro, cw, BODY).size() * LH + 12 + 20 + bulletsH(why, cw) + 24 + bulletsH(only, cw)
+				+ wrap(tip, cw, BODY).size() * LH + 14 + 48 + 14 + 32 + 24;
+		int y = Math.max(TOP - 30, (H - FOOTER - h) / 2);
+		g.setColor(new Color(0xFF16191D));
+		g.fillRect(x, y, w, h);
+		card(g, x, y, w, h, BAD);
+		g.setColor(new Color(0x60E05050, true));
+		g.setStroke(new BasicStroke(1f));
+		g.drawRect(x, y, w - 1, h - 1);
+		hit(x, y, w, h, null, "Counter-Craft 2 doesn't work without its asset pack.");
+		int ty = y + 28;
+		text(g, "Skip the asset pack?", tx, ty + 22, TEXT, BIG);
+		chip(g, "NOT RECOMMENDED", tx + tw("Skip the asset pack?", BIG) + 14, ty + 6, BAD);
+		ty += 34;
+		ty = para(g, intro, tx, ty, cw, SOFT) + 12;
+		ty = sub(g, "Without it", tx, ty);
+		ty = bullets(g, why, tx, ty, cw, BAD);
+		ty = sub(g, "Only skip it if", tx, ty + 4);
+		ty = bullets(g, only, tx, ty, cw, ACCENT);
+		ty = para(g, tip, tx, ty, cw, HINT) + 14;
+		choice(g, tx, ty, cw, 48, 2, skipSure, true, "I know what I'm doing: I'll add the asset pack and its weapon table myself.", "",
+				List.of(), () -> skipSure = !skipSure, "Tick this to be able to skip the pack.");
+		ty += 48 + 14;
+		int bw = 300;
+		button(g, x + w - 28 - bw, ty, bw, 32, "KEEP THE ASSET PACK (RECOMMENDED)", GOOD, true, () -> skipAsk = false,
+				"Back to building or picking the asset pack.");
+		button(g, tx, ty, 200, 32, "SKIP IT ANYWAY", BAD, skipSure, () -> {
+			skipAsk = false;
+			setMode(SKIP);
+		}, skipSure ? "Install Counter-Craft 2 without the asset pack." : "Tick \"I know what I'm doing\" first.");
+	}
+
+	private static int para(Graphics2D g, String t, int x, int y, int w, int color) {
+		for (String l : wrap(t, w, BODY)) {
+			text(g, l, x, y + 13, color, BODY);
+			y += LH;
+		}
+		return y;
+	}
+
+	private static int sub(Graphics2D g, String t, int x, int y) {
+		text(g, t.toUpperCase(Locale.ROOT), x, y + 12, DIM, LABEL);
+		return y + 20;
+	}
+
+	private static int bulletsH(String[] items, int w) {
+		int h = 0;
+		for (String s : items) {
+			h += wrap(s, w - 18, BODY).size() * LH + 4;
+		}
+		return h;
+	}
+
+	private static int bullets(Graphics2D g, String[] items, int x, int y, int w, int dot) {
+		for (String s : items) {
+			g.setColor(new Color(dot));
+			g.fillOval(x + 4, y + 7, 5, 5);
+			y = para(g, s, x + 18, y, w - 18, SOFT) + 4;
+		}
+		return y;
 	}
 
 	private void header(Graphics2D g) {
@@ -630,7 +750,7 @@ public final class CcInstaller extends JComponent {
 		y = section(g, "Already installed?", y);
 		if (onPc.isEmpty()) {
 			y = line(g, "No Counter-Craft 2 install found in the Minecraft Launcher or Prism Launcher's usual folder. Installed somewhere else "
-					+ "with Prism Launcher or MultiMC? Find it to update it.", y, DIM);
+					+ "with Prism Launcher or MultiMC, or in a portable folder? Find it to update it.", y, DIM);
 		}
 		for (Install.Found f : onPc) {
 			y = installRow(g, y, f);
@@ -639,6 +759,10 @@ public final class CcInstaller extends JComponent {
 			prism = p;
 			dirty = true;
 		}), "Pick a Prism Launcher or MultiMC folder to look for Counter-Craft 2 instances in.");
+		button(g, PAD + 268, y, 230, 30, "FIND A PORTABLE INSTALL", SOFT, !running, () -> pick(portable, p -> {
+			portable = p;
+			dirty = true;
+		}), "Pick a portable Counter-Craft 2 folder to update.");
 		y += 42;
 		String d = "Brings an install up to date when this release changed the asset pack too (an install above says so). The pack is "
 				+ "built again only if this release changed it, only files that differ are copied into the install, and its worlds and "
@@ -761,7 +885,7 @@ public final class CcInstaller extends JComponent {
 				} else {
 					Install.modUpdate(dir, l -> { });
 					List<String> bad = new ArrayList<>(Install.verify(dir));
-					bad.addAll(dir.getParent().equals(Detect.dotMinecraft()) ? Install.verifyOfficial(dir) : Install.verifyInstance(dir));
+					bad.addAll(Install.verifyLauncher(dir));
 					state = bad.isEmpty() ? "OK" : "Failed: updated, but " + String.join("; ", bad);
 				}
 			} catch (Exception e) {
@@ -783,11 +907,14 @@ public final class CcInstaller extends JComponent {
 		Path dir = f.gameDir();
 		mode = UPDATE;
 		existing = dir;
-		if (dir.getParent().equals(Detect.dotMinecraft())) {
+		if (Install.PORTABLE.equals(Install.launcherOf(dir))) {
+			launcher = PORTABLE;
+			portable = dir;
+		} else if (dir.getParent().equals(Detect.dotMinecraft())) {
 			launcher = OFFICIAL;
 		} else {
 			Path root = Detect.launcherRoot(dir);
-			boolean multi = "MultiMC".equals(launcherOf(dir));
+			boolean multi = "MultiMC".equals(Install.launcherOf(dir));
 			launcher = multi ? MULTIMC : PRISM;
 			if (multi) {
 				multimc = root;
@@ -797,14 +924,6 @@ public final class CcInstaller extends JComponent {
 		}
 		setMode(UPDATE);
 		go(agreed ? SOURCE : NOTICES);
-	}
-
-	private static String launcherOf(Path gameDir) {
-		try {
-			return (String) Json.object(Files.readString(gameDir.resolve(Install.RECORD))).get("launcher");
-		} catch (Exception e) {
-			return null;
-		}
 	}
 
 	/** Update Installer: download, check and open the newer installer, then close this one. */
@@ -932,7 +1051,7 @@ public final class CcInstaller extends JComponent {
 		y = intro(g, "The asset pack is made from your own copy of Counter-Strike 2. Pick the games, the weapon sounds, and whether to build a "
 				+ "new pack, use one you built before, or update one.", y);
 		y = section(g, "Counter-Strike 2", y);
-		y = source(g, y, "Counter-Strike 2", cs2, Detect.isCs2(cs2), mode != EXISTING, cs2Note, "Not found in your Steam libraries: Browse to its folder.",
+		y = source(g, y, "Counter-Strike 2", cs2, Detect.isCs2(cs2), builds(), cs2Note, "Not found in your Steam libraries: Browse to its folder.",
 				() -> {
 					Detect.Found f = Detect.cs2();
 					if (f == null) {
@@ -977,6 +1096,16 @@ public final class CcInstaller extends JComponent {
 									+ "again in full next to the old one, which keeps working until the new one is ready.");
 		}
 		y += ah + 12;
+		if (mode == SKIP) {
+			String d = "Minecraft won't start until you put a pack's " + Install.WEAPONS + " into config/countercraft, and nothing looks or "
+					+ "sounds like Counter-Strike until its " + Install.PACK + " folder is in resourcepacks. Pick one of the three above to "
+					+ "put the pack back.";
+			int sh = choiceH(d, BW);
+			choice(g, PAD, y, BW, sh, 0, false, true, "No asset pack: Counter-Craft 2 won't work until you add it yourself", d,
+					List.of(new Chip("NOT RECOMMENDED", BAD)), null, "You chose to install without the asset pack.");
+			fill(g, PAD, y, 3, sh, BAD);
+			return y + sh + 8;
+		}
 		if (mode == BUILD) {
 			y = label(g, "BUILD IT IN", y);
 			y = pathRow(g, y, out, "Pick a folder", p -> out = p, "Where the pack is built and kept. A pack already there is updated.");
@@ -1005,7 +1134,12 @@ public final class CcInstaller extends JComponent {
 				y = line(g, s, y, c);
 			}
 		}
-		if (mode != EXISTING && repo != null) {
+		button(g, PAD, y, 330, 28, "SKIP THE ASSET PACK  (NOT RECOMMENDED)", DIM, true, () -> {
+			skipAsk = true;
+			skipSure = false;
+		}, "Install without the asset pack. Counter-Craft 2 doesn't work without it: this says why first.");
+		y += 40;
+		if (builds() && repo != null) {
 			y = section(g, "Pack builder tools", y + 4);
 			y = line(g, "Building the pack needs these free tools. Counter-Craft 2 doesn't include them: Download gets each one from its "
 					+ "project's official release on GitHub, onto this PC.", y, SOFT);
@@ -1094,6 +1228,11 @@ public final class CcInstaller extends JComponent {
 		th.start();
 	}
 
+	/** Does the pack get built (in full or in part) from Counter-Strike? */
+	private boolean builds() {
+		return mode == BUILD || mode == UPDATE;
+	}
+
 	private void setMode(int k) {
 		mode = k;
 		if (k == UPDATE && built != null && Install.manifest(built) != null) {
@@ -1146,8 +1285,8 @@ public final class CcInstaller extends JComponent {
 	// ---------------------------------------------------------------- 4: Destination
 
 	private int destination(Graphics2D g, int y) {
-		y = intro(g, "Where do you play? Pick one launcher. Counter-Craft 2 gets its own profile or instance there, with the mod and the asset "
-				+ "pack inside; nothing else in the launcher is changed.", y);
+		y = intro(g, "Where do you play? Pick one launcher, or a folder of its own. Counter-Craft 2 gets its own profile or instance there, "
+				+ "with the mod and the asset pack inside; nothing else in the launcher is changed.", y);
 		y = section(g, "Launcher", y);
 		int third = (BW - 24) / 3;
 		String[] names = {"Minecraft Launcher", "Prism Launcher", "MultiMC"};
@@ -1167,7 +1306,40 @@ public final class CcInstaller extends JComponent {
 				existing = null;
 			}, !can ? "The Minecraft Launcher isn't installed on this PC." : "Install into " + LAUNCHERS[k] + ".");
 		}
-		y += h + 14;
+		y += h + 12;
+		String pd = "Everything goes into one folder you pick: for a USB stick, another PC, or a launcher that isn't listed here. No launcher "
+				+ "is changed: you point yours at the folder yourself.";
+		int ph = choiceH(pd, BW);
+		choice(g, PAD, y, BW, ph, 1, launcher == PORTABLE, true, "A folder of its own (portable)", pd, List.of(), () -> {
+			launcher = PORTABLE;
+			existing = null;
+		}, "Install into a folder you pick, not into a launcher.");
+		y += ph + 14;
+		if (launcher == PORTABLE) {
+			y = label(g, "THE FOLDER", y);
+			y = pathRow(g, y, portable, "Pick a folder, like an empty one on a USB stick", p -> {
+				portable = p;
+				existing = null;
+			}, "Counter-Craft 2's game folder: mods, resourcepacks, config and options.txt go straight into it.");
+			if (portable != null) {
+				boolean cc2 = existing != null; // refresh(): the folder is a Counter-Craft 2 install
+				boolean empty = true;
+				try (var s = Files.list(portable)) {
+					empty = s.findAny().isEmpty();
+				} catch (IOException ignored) {
+					// not made yet: it will be
+				}
+				String rel = Install.releaseOf(portable);
+				y = line(g, cc2 ? "Counter-Craft 2 " + (rel == null ? "" : rel + " ") + "is in this folder: it's brought up to date. Its worlds and "
+						+ "settings stay as they are." : empty ? "Counter-Craft 2 goes straight into this folder: mods, resourcepacks, config and options.txt."
+								: "This folder isn't empty: Counter-Craft 2's files go in beside what's there (mods, resourcepacks, config, options.txt). "
+										+ "An empty folder is tidier.", y, cc2 || empty ? GOOD : WARN);
+			}
+			y = line(g, "To play it, your launcher needs Minecraft " + Install.MC + " with Fabric Loader " + Install.LOADER + " (and Java 25), with "
+					+ "this folder as its game directory; in Prism Launcher or MultiMC, copy the folder's contents into an instance's minecraft "
+					+ "folder. \"" + Install.HOW_TO + "\" in the folder says how.", y, DIM);
+			return y;
+		}
 		if (launcher == PRISM || launcher == MULTIMC) {
 			String n = launcher == PRISM ? "Prism Launcher" : "MultiMC";
 			Path root = launcher == PRISM ? prism : multimc;
@@ -1255,13 +1427,17 @@ public final class CcInstaller extends JComponent {
 					: updSteps.isEmpty() ? "Nothing changed: the pack is up to date." : "Only what changed: " + String.join(", ", updSteps) + ".";
 			y = planRow(g, y, n++, "Update the asset pack", what + "   ·   " + (built == null ? "" : built),
 					updSteps == null ? "..." : updSteps.isEmpty() && updWhy == null ? "no rebuild" : dur(buildSeconds()));
+		} else if (mode == SKIP) {
+			y = planRow(g, y, n++, "Skip the asset pack (not recommended)", "Minecraft won't start until you add a pack's weapon table to "
+					+ "config/countercraft, and its " + Install.PACK + " folder to resourcepacks.", "skipped");
 		} else {
 			y = planRow(g, y, n++, "Use the asset pack you picked", built == null ? "" : built.toString(), "no build");
 		}
 		String where = target() == null ? "" : target().toString();
 		y = planRow(g, y, n++, (existing != null ? "Update Counter-Craft 2 in " : "Install Counter-Craft 2 into ") + (launcher < 0 ? "..." : LAUNCHERS[launcher]),
 				where, dur(installSeconds()));
-		y = planRow(g, y, n, "Check the installation", "The mod, Fabric API, the asset pack, options.txt and the launcher's own files.", dur(CHECK_SECONDS));
+		y = planRow(g, y, n, "Check the installation", "The mod, Fabric API" + (mode == SKIP ? "" : ", the asset pack") + ", options.txt"
+				+ (launcher == PORTABLE ? " and the install's record." : " and the launcher's own files."), dur(CHECK_SECONDS));
 		fill(g, PAD, y + 2, BW, 1, LINE);
 		text(g, "Total", PAD + 16, y + 24, TEXT, STRONG);
 		String total = mode == UPDATE && updSteps == null ? "checking..." : dur(totalSeconds());
@@ -1287,7 +1463,7 @@ public final class CcInstaller extends JComponent {
 					+ ": free some up, or pick another place.");
 			y += 44;
 		}
-		return line(g, "You can keep using your PC meanwhile, but games may stutter while the pack builds. You can cancel at any time.", y + 6, DIM);
+		return builds() ? line(g, "You can keep using your PC meanwhile, but games may stutter while the pack builds. You can cancel at any time.", y + 6, DIM) : y;
 	}
 
 	private int planRow(Graphics2D g, int y, int n, String what, String detail, String time) {
@@ -1351,7 +1527,8 @@ public final class CcInstaller extends JComponent {
 		}
 		// the three parts, in words
 		y = section(g, "Progress", y);
-		y = phase(g, y, mode == BUILD ? "Build the asset pack" : mode == UPDATE ? "Update the asset pack" : "Asset pack (already built)", 0, buildCount, now);
+		y = phase(g, y, mode == BUILD ? "Build the asset pack" : mode == UPDATE ? "Update the asset pack" : mode == SKIP ? "Asset pack (skipped)"
+				: "Asset pack (already built)", 0, buildCount, now);
 		y = phase(g, y, stages.size() > buildCount ? stages.get(buildCount).name() : "Install", buildCount, buildCount + 1, now);
 		y = phase(g, y, "Check the installation", buildCount + 1, buildCount + 2, now);
 		y += 6;
@@ -1450,7 +1627,11 @@ public final class CcInstaller extends JComponent {
 		text(g, fit("In " + LAUNCHERS[doneLauncher] + ": " + where + "   ·   took " + dur((runEnd - runStart) / 1000), BW - 110, BODY), PAD + 88, y + 70, SOFT, BODY);
 		y += 110;
 		y = section(g, "How to play", y);
-		String[] steps = doneLauncher == OFFICIAL ? new String[] {
+		String[] steps = doneLauncher == PORTABLE ? new String[] {
+				"In your launcher, add Minecraft " + Install.MC + " with Fabric Loader " + Install.LOADER + " (Minecraft " + Install.MC + " needs Java 25).",
+				"Minecraft Launcher: set that installation's game directory to this folder. Prism Launcher, MultiMC: copy what's in it into an instance's minecraft folder.",
+				"\"" + Install.HOW_TO + "\" in the folder says the same, for when you move it."}
+				: doneLauncher == OFFICIAL ? new String[] {
 				"Open the Minecraft Launcher and choose Minecraft: Java Edition.",
 				"Next to the Play button, pick the \"" + (opened == null ? Install.NAME : opened.getFileName()) + "\" installation (it has the CC2 icon).",
 				"Press Play. The first start downloads Minecraft " + Install.MC + " and Fabric Loader, so it takes a little longer."}
@@ -1462,10 +1643,15 @@ public final class CcInstaller extends JComponent {
 			y = planRow(g, y, i + 1, steps[i], "", "");
 		}
 		y = section(g, "Good to know", y + 4);
-		for (String l : new String[] {"The asset pack is already turned on. In game, Options > Video > Texture Quality chooses the size textures are shown at.",
-				"To bring the asset pack up to date later, run the installer again and press Update Resource Pack.",
-				"The asset pack contains Valve's work: it's for your own use, so please don't share, upload or sell it."}) {
-			g.setColor(new Color(ACCENT));
+		String[] know = doneSkip ? new String[] {
+				"No asset pack was installed, as you chose: Minecraft won't start until a pack's " + Install.WEAPONS + " is in config/countercraft, "
+						+ "and nothing looks or sounds like Counter-Strike until its " + Install.PACK + " folder is in resourcepacks (it's already turned on in options.txt).",
+				"To have the installer add one, run it again: build a new pack, or use one you built, and pick this install to update."}
+				: new String[] {"The asset pack is already turned on. In game, Options > Video > Texture Quality chooses the size textures are shown at.",
+						"To bring the asset pack up to date later, run the installer again and press Update Mod & Pack.",
+						"The asset pack contains Valve's work: it's for your own use, so please don't share, upload or sell it."};
+		for (String l : know) {
+			g.setColor(new Color(doneSkip ? BAD : ACCENT));
 			g.fillOval(PAD + 6, y + 7, 5, 5);
 			for (String w : wrap(l, BW - 24, BODY)) {
 				text(g, w, PAD + 20, y + 13, SOFT, BODY);
@@ -1739,6 +1925,9 @@ public final class CcInstaller extends JComponent {
 	// ================================================================ sizes, times, problems
 
 	private double packGb() {
+		if (mode == SKIP) {
+			return 0.1; // the mod and Fabric API
+		}
 		if (mode != BUILD && packManifest != null && packManifest.get("files") instanceof Map<?, ?> files) { // a built pack: its real size
 			return files.values().stream().mapToDouble(e -> e instanceof Map<?, ?> m && m.get("size") instanceof Double d ? d : 0).sum() / 1e9;
 		}
@@ -1764,7 +1953,7 @@ public final class CcInstaller extends JComponent {
 
 	/** The pack's part: a full build, an update's steps, or nothing. */
 	private List<Step> packSteps() {
-		if (mode == EXISTING) {
+		if (!builds()) {
 			return List.of();
 		}
 		if (mode == UPDATE && updSteps != null && updWhy == null) {
@@ -1858,6 +2047,9 @@ public final class CcInstaller extends JComponent {
 		if (existing != null) {
 			return existing;
 		}
+		if (launcher == PORTABLE) {
+			return portable;
+		}
 		if (launcher == OFFICIAL) {
 			return Detect.dotMinecraft().resolve(Install.free(Detect.dotMinecraft(), Install.NAME));
 		}
@@ -1874,7 +2066,7 @@ public final class CcInstaller extends JComponent {
 			manifestKey = mk;
 			packManifest = built == null ? null : Install.manifest(built);
 		}
-		if (mode != EXISTING) {
+		if (builds()) {
 			if (!Detect.isCs2(cs2)) {
 				p.add(new Problem(SOURCE, cs2 == null ? "Counter-Strike 2 wasn't found. Use Find or Browse on the Counter-Strike page."
 						: "The Counter-Strike 2 folder on the Counter-Strike page isn't Counter-Strike 2's."));
@@ -1885,7 +2077,7 @@ public final class CcInstaller extends JComponent {
 		}
 		for (Tools.Tool t : Tools.ALL) {
 			toolHave.put(t, Tools.present(repo, t));
-			if (mode != EXISTING && !toolHave.get(t)) {
+			if (builds() && !toolHave.get(t)) {
 				p.add(new Problem(SOURCE, t.name() + " is needed to build the pack: press Download next to it on the Counter-Strike page."));
 			}
 		}
@@ -1907,6 +2099,10 @@ public final class CcInstaller extends JComponent {
 		}
 		if (launcher < 0) {
 			p.add(new Problem(DEST, "Pick the launcher to install Counter-Craft 2 into."));
+		} else if (launcher == PORTABLE) {
+			if (portable == null) {
+				p.add(new Problem(DEST, "Pick the folder to install Counter-Craft 2 into."));
+			}
 		} else if (launcher == OFFICIAL) {
 			if (official == null) {
 				p.add(new Problem(DEST, "The Minecraft Launcher wasn't found: pick Prism Launcher or MultiMC."));
@@ -1918,18 +2114,24 @@ public final class CcInstaller extends JComponent {
 		} else if (Detect.launcherRoot(launcher == PRISM ? prism : multimc) == null) {
 			p.add(new Problem(DEST, "Pick " + (launcher == PRISM ? "Prism Launcher" : "MultiMC") + "'s folder, the one with the instances folder in it."));
 		}
-		installs = launcher == OFFICIAL ? Install.officialInstalls() : launcher > OFFICIAL ? Install.instanceInstalls(Detect.launcherRoot(launcher == PRISM ? prism : multimc)) : List.of();
+		installs = launcher == OFFICIAL ? Install.officialInstalls() : launcher == PORTABLE ? Install.portableInstalls(portable)
+				: launcher > OFFICIAL ? Install.instanceInstalls(Detect.launcherRoot(launcher == PRISM ? prism : multimc)) : List.of();
 		List<Install.Found> all = new ArrayList<>(Install.officialInstalls());
+		List<Install.Found> more = new ArrayList<>(Install.portableInstalls(portable));
 		for (Path root : new Path[] {Detect.defaultPrism(), Detect.launcherRoot(prism), Detect.launcherRoot(multimc)}) {
-			for (Install.Found f : Install.instanceInstalls(root)) {
-				if (all.stream().noneMatch(x -> x.gameDir().equals(f.gameDir()))) {
-					all.add(f);
-				}
+			more.addAll(Install.instanceInstalls(root));
+		}
+		for (Install.Found f : more) {
+			if (all.stream().noneMatch(x -> x.gameDir().equals(f.gameDir()))) {
+				all.add(f);
 			}
 		}
 		onPc = all;
 		if (existing != null && installs.stream().noneMatch(f -> f.gameDir().equals(existing))) {
 			existing = null;
+		}
+		if (launcher == PORTABLE) {
+			existing = installs.isEmpty() ? null : portable; // the folder is the install: a Counter-Craft 2 one is updated
 		}
 		if (updateFirst && !installs.isEmpty()) {
 			existing = installs.getFirst().gameDir();
@@ -2073,9 +2275,10 @@ public final class CcInstaller extends JComponent {
 		}
 		int how = mode;
 		int to = launcher;
-		Path root = Detect.launcherRoot(launcher == PRISM ? prism : multimc);
+		Path root = launcher == PORTABLE ? portable : Detect.launcherRoot(launcher == PRISM ? prism : multimc);
 		Path into = existing;
 		existingAtStart = into != null;
+		doneSkip = how == SKIP;
 		int mb = MEMORY_GB[memory] * 1024;
 		stages.clear();
 		stages.addAll(packSteps());
@@ -2147,24 +2350,28 @@ public final class CcInstaller extends JComponent {
 	private void work(int how, int to, Path root, Path into, int mb) {
 		String stage = "the asset pack";
 		try {
-			Path pack = built;
-			if (how != EXISTING) {
+			Path pack = how == SKIP ? null : built;
+			if (how == BUILD || how == UPDATE) {
 				build(how == UPDATE);
 				pack = how == UPDATE ? built : out.resolve(Install.PACK);
 			}
-			List<String> bad = Install.problems(pack);
+			List<String> bad = pack == null ? List.of() : Install.problems(pack);
 			if (!bad.isEmpty()) {
 				throw new IOException("The asset pack isn't complete: " + String.join(", ", bad) + ".");
 			}
 			stage = "the install";
 			begin(-1, installStage(into, to));
 			log("Installing into " + LAUNCHERS[to] + ":");
-			Path game = to == OFFICIAL ? Install.officialLauncher(mb, pack, into, this::log) : Install.instance(root, to == PRISM, mb, pack, into, this::log);
+			Path game = switch (to) {
+				case OFFICIAL -> Install.officialLauncher(mb, pack, into, this::log);
+				case PORTABLE -> Install.portable(root, pack, this::log);
+				default -> Install.instance(root, to == PRISM, mb, pack, into, this::log);
+			};
 			stage = "the check";
 			begin(-1, "Check the installation");
 			log("Checking " + game + ":");
 			List<String> problems = new ArrayList<>(Install.verify(game));
-			problems.addAll(to == OFFICIAL ? Install.verifyOfficial(game) : Install.verifyInstance(game));
+			problems.addAll(Install.verifyLauncher(game));
 			for (String p : problems) {
 				log("  ! " + p);
 			}
@@ -2182,7 +2389,7 @@ public final class CcInstaller extends JComponent {
 			finish(false, cancelled ? List.of("You stopped it. Whatever was already installed stays where it is: run the installer again to finish.")
 					: friendly(e, stage), null, -1);
 		} finally {
-			if (cancelled && how != EXISTING) {
+			if (cancelled && (how == BUILD || how == UPDATE)) {
 				deleteTree((how == UPDATE ? built.getParent() : out).resolve(".cc2-extract")); // the build's throwaway files
 			}
 		}

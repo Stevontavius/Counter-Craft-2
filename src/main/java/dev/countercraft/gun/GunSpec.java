@@ -37,6 +37,8 @@ public record GunSpec(
 		Sounds sounds,
 		Ironsight ironsight,
 		ShellReload shellReload,
+		float[] reloadAmmoAt,
+		float[] silencerAt,
 		RecoilPattern recoil,
 		ShotFx fx) {
 
@@ -91,6 +93,25 @@ public record GunSpec(
 
 	public int reloadTicks() {
 		return Math.max(1, Math.round(reloadTime * 20f));
+	}
+
+	/**
+	 * Ticks from a magazine reload's start until the rounds are in: where CS2's reload clip puts them in (its
+	 * WPN_RELOAD_ADD_AMMO event; the clip plays over reloadTime), the empty reload's when {@code empty}; without that
+	 * data (a weapon table from before BETA 1.2.3), the reload's end.
+	 */
+	public int reloadAmmoTicks(boolean empty) {
+		float f = reloadAmmoAt == null ? Float.NaN : reloadAmmoAt[empty ? 1 : 0];
+		return Float.isNaN(f) ? reloadTicks() : Math.max(1, Math.round(f * reloadTime * 20f));
+	}
+
+	/**
+	 * Ticks from screwing the silencer on ({@code attach}) or off until it is: CS2's WPN_SILENCER_ATTACH / _DETACH in the
+	 * clip; without that data, two seconds (BETA 1.2.2 and before).
+	 */
+	public int silencerTicks(boolean attach) {
+		float s = silencerAt == null ? Float.NaN : silencerAt[attach ? 0 : 1];
+		return Float.isNaN(s) ? 40 : Math.max(1, Math.round(s * 20f));
 	}
 
 	/** Shot sound event id (without namespace). */

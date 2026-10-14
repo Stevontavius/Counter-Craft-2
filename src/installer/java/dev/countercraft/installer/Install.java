@@ -35,9 +35,10 @@ import javax.imageio.ImageIO;
  * Putting Counter-Craft 2 where it's played: the mod and Fabric API (bundled in the installer), the asset pack and
  * options.txt turning the pack on, all in Counter-Craft 2's own game folder. Targets: the official Minecraft Launcher (a
  * version file for Fabric built from Fabric Loader's own library list, and a profile with its own game folder and the
- * CC2 icon), or a Prism Launcher / MultiMC instance. Each install is marked by RECORD in its game folder, so an update
- * finds it again; anything else is never touched: a new install gets a free name, and the launcher's profiles file is
- * backed up first.
+ * CC2 icon), a Prism Launcher / MultiMC instance, or a portable folder (the game folder itself, played by pointing a
+ * launcher at it). Each install is marked by RECORD in its game folder, so an update finds it again; anything else is
+ * never touched: a new install gets a free name, and the launcher's profiles file is backed up first. An install made
+ * without the asset pack (the player's choice, not recommended) has no "pack" in its record, and isn't checked for one.
  * <p>
  * The pack is copied by its manifest (cc2-manifest.json, written by build_pack.py) when both sides have one: only files
  * whose hash changed are copied, files the new manifest no longer lists are removed, and nothing else is. Each file is
@@ -45,13 +46,17 @@ import javax.imageio.ImageIO;
  * interrupted copy is redone (by size and date) the next time.
  */
 final class Install {
-	static final String RELEASE = "BETA 1.2.2";
+	static final String RELEASE = "BETA 1.2.3";
 	static final String PACK = "CounterCraft-CS2-Assets";
 	static final String MC = "26.3";
 	static final String LOADER = "0.19.5";
 	static final String NAME = "Counter-Craft 2";
 	static final String MANIFEST = "cc2-manifest.json";
 	static final String RECORD = "cc2-install.json";
+	/** A portable install's launcher, in its record. */
+	static final String PORTABLE = "Portable folder";
+	/** How to play a portable install, in its folder (it travels without the installer). */
+	static final String HOW_TO = "How to play Counter-Craft 2.txt";
 	/** The weapon table in the pack (made from the player's own CS2); the mod reads its copy in config/countercraft. */
 	static final String WEAPONS = "assets/countercraft/weapons.json";
 	private static final String UPDATING = ".cc2-updating";
@@ -194,6 +199,9 @@ final class Install {
 	 * otherwise why it has to be built again: a step's conversion version changed, or the pack has no manifest to tell.
 	 */
 	static String packChange(Path gameDir, Map<String, Integer> steps) {
+		if (!Files.isDirectory(gameDir.resolve("resourcepacks").resolve(PACK))) {
+			return ""; // installed without the pack: there's none to update
+		}
 		Map<String, Object> m = manifest(gameDir.resolve("resourcepacks").resolve(PACK));
 		if (m == null) {
 			return "its asset pack was built before updates existed (it has no manifest)";
@@ -214,10 +222,19 @@ final class Install {
 
 	/** The release an install was made or last updated with (its record), or null. */
 	static String releaseOf(Path gameDir) {
+		return (String) recordOf(gameDir).get("release");
+	}
+
+	/** The launcher an install was made for (its record: "Minecraft Launcher", "Prism Launcher", "MultiMC", PORTABLE), or null. */
+	static String launcherOf(Path gameDir) {
+		return (String) recordOf(gameDir).get("launcher");
+	}
+
+	private static Map<String, Object> recordOf(Path gameDir) {
 		try {
-			return (String) Json.object(Files.readString(gameDir.resolve(RECORD))).get("release");
+			return Json.object(Files.readString(gameDir.resolve(RECORD)));
 		} catch (Exception e) {
-			return null;
+			return Map.of();
 		}
 	}
 
@@ -236,10 +253,13 @@ final class Install {
 		} else if (Files.isRegularFile(dir.getParent().resolve("mmc-pack.json"))) {
 			instanceVersion(dir.getParent().resolve("mmc-pack.json"), log);
 		}
-		Path table = dir.resolve("config/countercraft/weapons.json");
-		Files.createDirectories(table.getParent());
-		copy(dir.resolve("resourcepacks").resolve(PACK).resolve(WEAPONS), table);
-		log.accept("  config/countercraft/weapons.json: the weapon table, from the installed pack");
+		Path from = dir.resolve("resourcepacks").resolve(PACK).resolve(WEAPONS);
+		if (Files.isRegularFile(from)) { // not in an install made without the pack
+			Path table = dir.resolve("config/countercraft/weapons.json");
+			Files.createDirectories(table.getParent());
+			copy(from, table);
+			log.accept("  config/countercraft/weapons.json: the weapon table, from the installed pack");
+		}
 		r.put("release", RELEASE);
 		r.put("updated", Instant.now().toString());
 		r.put("mods", jars);
@@ -311,6 +331,12 @@ final class Install {
 			// none
 		}
 		return out;
+	}
+
+	/** A portable Counter-Craft 2 folder, as a list (empty: {@code dir} isn't one). */
+	static List<Found> portableInstalls(Path dir) {
+		return dir != null && Files.isRegularFile(dir.resolve(RECORD))
+				? List.of(new Found(dir, String.valueOf(dir.getFileName() != null ? dir.getFileName() : dir))) : List.of();
 	}
 
 	/** Counter-Craft 2's instances in a Prism Launcher / MultiMC folder. */
@@ -468,24 +494,64 @@ final class Install {
 		return n;
 	}
 
-	/** The mod, the pack and options.txt into a Counter-Craft 2 game folder, and the record that marks it as one. */
+	/**
+	 * The mod, the pack and options.txt into a Counter-Craft 2 game folder, and the record that marks it as one.
+	 * {@code pack} null: installed without the pack (options.txt still turns it on, for when it's copied in).
+	 */
 	private static void gameDir(Path dir, Path pack, String launcher, Consumer<String> log) throws IOException {
 		Path record = dir.resolve(RECORD);
 		List<String> jars = mods(dir.resolve("mods"), record, log);
-		pack(pack, dir.resolve("resourcepacks"), log);
+		if (pack != null) {
+			pack(pack, dir.resolve("resourcepacks"), log);
+		}
 		options(dir);
 		log.accept("  options.txt: the pack turned on");
-		Path table = dir.resolve("config/countercraft/weapons.json");
-		Files.createDirectories(table.getParent());
-		copy(pack.resolve(WEAPONS), table);
-		log.accept("  config/countercraft/weapons.json: the weapon table");
+		if (pack != null) {
+			Path table = dir.resolve("config/countercraft/weapons.json");
+			Files.createDirectories(table.getParent());
+			copy(pack.resolve(WEAPONS), table);
+			log.accept("  config/countercraft/weapons.json: the weapon table");
+		} else {
+			log.accept("  no asset pack (skipped): Minecraft won't start until its weapon table is in config/countercraft");
+		}
 		Map<String, Object> r = new LinkedHashMap<>();
 		r.put("release", RELEASE);
 		r.put("installed", Instant.now().toString());
 		r.put("launcher", launcher);
 		r.put("mods", jars);
-		r.put("pack", PACK);
+		if (pack != null) {
+			r.put("pack", PACK);
+		}
 		Files.writeString(record, Json.write(r));
+	}
+
+	/**
+	 * A portable install: Counter-Craft 2's game folder is {@code dir} itself (new, or brought up to date), with a note on
+	 * how to play it. Nothing outside it is changed: no launcher is touched.
+	 */
+	static Path portable(Path dir, Path pack, Consumer<String> log) throws IOException {
+		Files.createDirectories(dir);
+		log.accept("  portable folder " + dir + (Files.isRegularFile(dir.resolve(RECORD)) ? " (updating)" : ""));
+		gameDir(dir, pack, PORTABLE, log);
+		Files.writeString(dir.resolve(HOW_TO), String.join(System.lineSeparator(),
+				"Counter-Craft 2 " + RELEASE + ", installed as a portable folder: this folder is Minecraft's game folder.",
+				"",
+				"To play it, you need Minecraft " + MC + " with Fabric Loader " + LOADER + " (Minecraft " + MC + " needs Java 25):",
+				"",
+				"- The Minecraft Launcher, or any launcher with a game directory setting: make an installation of Fabric Loader " + LOADER,
+				"  for Minecraft " + MC + " (Fabric's own installer, fabricmc.net, adds it to the Minecraft Launcher), and set its game",
+				"  directory to this folder.",
+				"- Prism Launcher, MultiMC and other launchers with instances: make an instance of Minecraft " + MC + " with Fabric Loader",
+				"  " + LOADER + ", and copy everything in this folder into the instance's minecraft folder.",
+				"",
+				pack != null ? "The asset pack is in resourcepacks and already turned on. It contains Valve's work: it's for your own use,"
+						+ System.lineSeparator() + "so please don't share, upload or sell it."
+						: "This folder has no asset pack: Minecraft won't start until a pack's assets/countercraft/weapons.json is in"
+								+ System.lineSeparator() + "config/countercraft, and nothing looks or sounds like Counter-Strike until the pack's " + PACK
+								+ System.lineSeparator() + "folder is in resourcepacks. The Counter-Craft 2 installer builds one from your own Counter-Strike 2.",
+				""));
+		log.accept("  " + HOW_TO);
+		return dir;
 	}
 
 	/** What's wrong with an installed game folder (empty: it's all there). */
@@ -499,6 +565,19 @@ final class Install {
 			}
 		} catch (IOException e) {
 			out.add("the installer's own files can't be read: " + e.getMessage());
+		}
+		try {
+			if (!Files.readString(dir.resolve("options.txt")).contains("file/" + PACK)) {
+				out.add("options.txt doesn't turn the pack on");
+			}
+		} catch (IOException e) {
+			out.add("options.txt is missing");
+		}
+		Map<String, Object> record = recordOf(dir);
+		if (record.isEmpty()) {
+			out.add(RECORD + " is missing");
+		} else if (!record.containsKey("pack")) {
+			return out; // installed without the asset pack
 		}
 		Path pack = dir.resolve("resourcepacks").resolve(PACK);
 		for (String p : problems(pack)) {
@@ -523,16 +602,6 @@ final class Install {
 		}
 		if (Files.exists(pack.resolve(UPDATING))) {
 			out.add("the asset pack's copy didn't finish");
-		}
-		try {
-			if (!Files.readString(dir.resolve("options.txt")).contains("file/" + PACK)) {
-				out.add("options.txt doesn't turn the pack on");
-			}
-		} catch (IOException e) {
-			out.add("options.txt is missing");
-		}
-		if (!Files.isRegularFile(dir.resolve(RECORD))) {
-			out.add(RECORD + " is missing");
 		}
 		if (!Files.isRegularFile(dir.resolve("config/countercraft/weapons.json"))) {
 			out.add("the weapon table (config/countercraft/weapons.json) is missing");
@@ -664,6 +733,12 @@ final class Install {
 			}
 		}
 		return out;
+	}
+
+	/** The launcher's own files for an install, by what it was made for (a portable folder has none). */
+	static List<String> verifyLauncher(Path game) {
+		return PORTABLE.equals(launcherOf(game)) ? List.of()
+				: game.getParent().equals(Detect.dotMinecraft()) ? verifyOfficial(game) : verifyInstance(game);
 	}
 
 	/** An instance's own files: what's missing (empty: all there). */

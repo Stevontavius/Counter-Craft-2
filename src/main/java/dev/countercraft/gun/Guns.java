@@ -207,7 +207,22 @@ public final class Guns {
 				f(o, "damage"), i(o, "pellets"), f(o, "armorRatio"), f(o, "penetration"), f(o, "range"), f(o, "rangeModifier"),
 				f(o, "headshot"), cycle, b(o, "auto"), clip, i(o, "reserve"), f(o, "reloadTime"), b(o, "singleShellReload"),
 				f(o, "deploy"), pair(o, "maxSpeed"), f(o, "attackMoveSpeedFactor"), acc, zoom, str(o, "silencer"), burst,
-				b(o, "revolver"), b(o, "exhaustible"), sounds, ironsight, shells, recoil(o, clip, cycle[0]), shotFx(o));
+				b(o, "revolver"), b(o, "exhaustible"), sounds, ironsight, shells, maybePair(o, "reloadAmmoAt"), maybePair(o, "silencerAt"),
+				recoil(o, clip, cycle[0]), shotFx(o));
+	}
+
+	/** {a, b} with NaN for a null; null when the table doesn't have it (made before BETA 1.2.3). */
+	private static float[] maybePair(JsonObject o, String key) {
+		if (!o.has(key) || !o.get(key).isJsonArray()) {
+			return null;
+		}
+		JsonArray a = o.getAsJsonArray(key);
+		float[] out = new float[2];
+		for (int k = 0; k < 2; k++) {
+			JsonElement e = a.size() > k ? a.get(k) : null;
+			out[k] = e == null || e.isJsonNull() ? Float.NaN : e.getAsFloat();
+		}
+		return out;
 	}
 
 	/** Desert Eagle tuning on top of CS2's data: standing first-shot inaccuracy, firing penalty, recovery time. */

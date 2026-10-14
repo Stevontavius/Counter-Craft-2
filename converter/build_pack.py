@@ -49,7 +49,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 VRF = ROOT / "tools" / "vrf" / "Source2Viewer-CLI.exe"
 PACK = "CounterCraft-CS2-Assets"
-RELEASE = "BETA 1.2.2"
+RELEASE = "BETA 1.2.3"
 OPTIONAL = ("skins", "gloves", "musickits")
 MANIFEST = "cc2-manifest.json"
 MANIFEST_FORMAT = 1
@@ -59,7 +59,9 @@ STEPS = {
     "weapondata": ("CS2 weapon data", 1, False),
     "cosmetics": ("Cosmetics catalog", 1, False),
     "base": ("Weapons, sounds, HUD", 1, True),
-    "weapontable": ("Weapon table", 1, False),  # the mod's weapons.json, made here so none of Valve's data ships with the mod
+    # the mod's weapons.json, made here so none of Valve's data ships with the mod. 2: reload / silencer timing from the
+    # clips' events (weapons.CHANGED: an update patches the pack's table)
+    "weapontable": ("Weapon table", 2, False),
     "agents": ("Agents", 1, False),
     "ragdoll": ("Ragdolls", 1, False),
     "eyes": ("Agent eyes", 1, False),
@@ -91,7 +93,7 @@ def plan(args):
                         "-f", "scripts/weapons.vdata_c"]),
         ("cosmetics", [str(HERE / "cosmetics.py"), *cs2, "--step", *exports]),
         ("base", conv),
-        ("weapontable", [str(HERE / "weapons.py"), "--out", str(args.out / PACK / "assets" / "countercraft" / "weapons.json")]),
+        ("weapontable", [str(HERE / "weapons.py"), *cs2, "--out", str(args.out / PACK / "assets" / "countercraft" / "weapons.json")]),
     ]
     for step in ("agents", "ragdoll", "eyes", "deathcam", "maps"):
         steps.append((step, conv + ["--step", step]))
@@ -223,7 +225,7 @@ def to_rerun(old, args):
 
 def label(step, partial):
     """A step's name for the installer (its time estimate goes by it)."""
-    return STEPS[step][0] + (" (changed only)" if partial and step == "skins" else "")
+    return STEPS[step][0] + (" (changed only)" if partial and step in ("skins", "weapontable") else "")
 
 
 def swap(out, staged):
@@ -296,9 +298,10 @@ def main():
             pack = args.out / PACK
     steps = [(s, cmd) for s, cmd in plan(args) if s in ids]
     if partial:
-        # in place, on the pack as it is; the finishes step bakes only what its new version changed
-        steps = [(s, cmd + ["--since", f"{old['steps'][s]['version']}:{STEPS[s][1]}"] if s == "skins" and s in old["steps"] else cmd)
-                 for s, cmd in steps]
+        # in place, on the pack as it is; the finishes step bakes only what its new version changed, the weapon table step
+        # patches the pack's table
+        steps = [(s, cmd + ["--since", f"{old['steps'][s]['version']}:{STEPS[s][1]}"] if s in ("skins", "weapontable") and s in old["steps"]
+                  else cmd) for s, cmd in steps]
     if args.dry_run:
         for i, (s, cmd) in enumerate(steps, 1):
             print(f"{i}/{len(steps)} {label(s, partial)}: {' '.join(cmd)}")

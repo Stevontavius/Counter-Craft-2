@@ -4,6 +4,7 @@
     "countercraft:knife",
     "countercraft:grenade",
     "countercraft:fire",
-    "countercraft:taser"
+    "countercraft:taser",
+    "countercraft:shock"
   ]
 }

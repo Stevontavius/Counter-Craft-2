@@ -8,7 +8,7 @@
 
 A free, fan-made Fabric mod for Minecraft: Java Edition.
 
-[![Release](https://img.shields.io/badge/release-BETA%201.2.2-dcb45a?style=flat-square)](../../releases)
+[![Release](https://img.shields.io/badge/release-BETA%201.2.3-dcb45a?style=flat-square)](../../releases)
 [![Minecraft](https://img.shields.io/badge/Minecraft-26.3-62b47a?style=flat-square)](https://www.minecraft.net/)
 [![Fabric](https://img.shields.io/badge/Fabric%20Loader-0.19.5-dbd0b4?style=flat-square)](https://fabricmc.net/)
 [![Java](https://img.shields.io/badge/Java-25-e76f00?style=flat-square)](https://adoptium.net/)
@@ -56,7 +56,8 @@ A free, fan-made Fabric mod for Minecraft: Java Edition.
   honey change it as they would in Minecraft.
 - Surf ramps: the 45° slope of any stair, crafted from that stair and a feather. With CS movement you surf them;
   operators can raise `sv_airaccelerate` (up to 2000) and `sv_maxvelocity` (up to 10000) for surf servers, and turn
-  off the jump penalty with `sv_staminajumpcost 0` / `sv_staminalandcost 0` for bunny hopping. Saved per world.
+  off the jump penalty with `sv_staminajumpcost 0` / `sv_staminalandcost 0` for bunny hopping; `/bypass_limits true`
+  lifts those caps altogether. Saved per world.
 - Hardcore co-op with *Another Chance*: spectate your teammates, then respawn at dawn if anyone made it through the night.
   In hardcore, a player list shows where everyone is (or that they're dead), with their skin's face.
 - Terrorist and Counter-Terrorist teams as a cosmetic identity, with agent models, voice lines and radio calls. An
@@ -94,37 +95,43 @@ sell it.
 |---|---|
 | **System** | Windows 10 or 11 |
 | **Games** | Counter-Strike 2, installed through Steam. Counter-Strike: Global Offensive optionally, for its weapon sounds |
-| **Minecraft** | Minecraft: Java Edition, with the Minecraft Launcher, Prism Launcher or MultiMC |
+| **Minecraft** | Minecraft: Java Edition, with the Minecraft Launcher, Prism Launcher or MultiMC (or any launcher, with a portable install) |
 | **Java** | Nothing to install: the installer app brings its own Java (the plain `.jar` needs Java 25), and your launcher runs Minecraft with its own |
 | **Disk space** | About 66 GB free while the asset pack builds; about 16 GB stays |
 | **Time** | A few hours for the first build (2.5 to 4 hours measured) |
 
 ## Installation
 
-1. Download **`CC2-Installer-Beta-1.2.2-Windows.zip`** from [Releases](../../releases) and unzip it.
+1. Download **`CC2-Installer-Beta-1.2.3-Windows.zip`** from [Releases](../../releases) and unzip it.
 2. Open the **Counter-Craft 2 Installer** folder and double-click **`Counter-Craft 2 Installer.exe`**. If Windows says it
    protected your PC, choose **More info**, then **Run anyway** (the installer isn't code-signed).
 
-   Not on Windows, or rather have a single file? **`CC2-Installer-Beta-1.2.2-Universal.jar`** is the same installer without
-   the app around it: double-click it, or run `java -jar CC2-Installer-Beta-1.2.2-Universal.jar`. It needs Java 25; if
+   Not on Windows, or rather have a single file? **`CC2-Installer-Beta-1.2.3-Universal.jar`** is the same installer without
+   the app around it: double-click it, or run `java -jar CC2-Installer-Beta-1.2.3-Universal.jar`. It needs Java 25; if
    whatever Java opens it is older, it finds a Java 25 on your PC (Minecraft's own counts) and opens with that.
 3. Read the notices and licenses, then go through the steps:
 
    | Step | What happens |
    |---|---|
    | **Counter-Strike** | Your games are found through Steam. The first time, the installer offers to download the pack builder's free tools (Source 2 Viewer, FFmpeg, uv) from their official GitHub releases; Counter-Craft 2 doesn't include them. |
-   | **Destination** | Pick one launcher. Counter-Craft 2 gets a profile or instance of its own, with the mod and asset pack inside; nothing else is changed. |
+   | **Destination** | Pick one launcher. Counter-Craft 2 gets a profile or instance of its own, with the mod and asset pack inside; nothing else is changed. Or pick **A folder of its own (portable)**: everything goes into one folder, and no launcher is touched. |
    | **Review** | The plan, the time it should take and the disk space each drive needs. |
    | **Progress** | The asset pack is built, installed and checked. |
 
 4. Open your launcher, choose the **Counter-Craft 2** profile or instance, and press Play.
+
+   **Portable install:** your launcher needs Minecraft 26.3 with Fabric Loader 0.19.5. In the Minecraft Launcher (or
+   another launcher with a game directory setting), set that installation's game directory to the folder. In Prism
+   Launcher or MultiMC, copy the folder's contents into an instance's `minecraft` folder. The folder's
+   `How to play Counter-Craft 2.txt` says the same.
 
 ## Updating
 
 Open the installer. From BETA 1.1 on it tells you when a newer release is out and can update itself (**Update
 Installer**: downloaded from this repository's releases and checked against GitHub's checksum before it's used).
 
-Its Welcome page lists the Counter-Craft 2 installs on your PC and their release. **Update** brings one up to date: when
+Its Welcome page lists the Counter-Craft 2 installs on your PC and their release (**Find a Portable Install** adds a
+portable folder). **Update** brings one up to date: when
 the new release didn't change the asset pack, only the mod, Fabric API, the loader and the weapon table are replaced, in a
 few seconds. When it did, the pack is rebuilt (only then), and only files that differ are copied into your install.
 Worlds and settings stay as they are.
@@ -133,7 +140,7 @@ Worlds and settings stay as they are.
 
 A server needs:
 
-1. **`CC2-Server-Beta-1.2.2.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
+1. **`CC2-Server-Beta-1.2.3.jar`** (from [Releases](../../releases)) and [Fabric API](https://modrinth.com/mod/fabric-api) in its `mods` folder
    (Minecraft 26.3, Fabric Loader 0.19.5).
 2. **The weapon table**: copy `config/countercraft/weapons.json` from a Counter-Craft 2 install into the server's
    `config/countercraft/` folder.
@@ -152,6 +159,15 @@ warnings on the way. Operators and the host of an open-to-LAN world are exempt. 
 
 Yes. The installer builds the asset pack and the weapon table from your own Counter-Strike 2 install, and the mod needs
 both to run.
+</details>
+
+<details>
+<summary><b>Can I install without building the asset pack?</b></summary>
+
+You can, but it isn't recommended: Counter-Craft 2 doesn't work without it. **Skip the asset pack** on the installer's
+Counter-Strike page explains why first. Minecraft won't start without the weapon table (`config/countercraft/weapons.json`,
+which comes from the pack), and without the pack nothing looks or sounds like Counter-Strike. It's for setting things up by
+hand. If you built a pack before, choose **Use a pack I already built** instead.
 </details>
 
 <details>
@@ -186,8 +202,8 @@ Yes. Please credit Counter-Craft 2, and follow Mojang's and Valve's own rules fo
 <summary><b>Double-clicking the Universal jar does nothing</b></summary>
 
 Windows is opening `.jar` files without `-jar` (this happens after choosing Java through "Open with"). Use the Windows
-download (`CC2-Installer-Beta-1.2.2-Windows.zip`, double-click `Counter-Craft 2 Installer.exe`), or run
-`java -jar CC2-Installer-Beta-1.2.2-Universal.jar` in a terminal.
+download (`CC2-Installer-Beta-1.2.3-Windows.zip`, double-click `Counter-Craft 2 Installer.exe`), or run
+`java -jar CC2-Installer-Beta-1.2.3-Universal.jar` in a terminal.
 </details>
 
 <details>
