@@ -58,6 +58,12 @@ public class SurfRampBlock extends HorizontalDirectionalBlock {
 		return COLLISION.get(state.getValue(FACING));
 	}
 
+	/** Landing on a ramp isn't a fall (CS2 takes no fall damage on surf ramps); see also {@link SurfRamps} for CS movement. */
+	@Override
+	public void fallOn(net.minecraft.world.level.Level level, BlockState state, BlockPos pos, net.minecraft.world.entity.Entity entity, double fallDistance) {
+		entity.resetFallDistance();
+	}
+
 	/** A staircase of {@code n} steps under (and up to) the slope, for each facing. */
 	private static Map<Direction, VoxelShape> steps(int n) {
 		Map<Direction, VoxelShape> out = new EnumMap<>(Direction.class);

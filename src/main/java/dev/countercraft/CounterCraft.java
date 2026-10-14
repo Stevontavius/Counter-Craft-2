@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
 public class CounterCraft implements ModInitializer {
 	public static final String MOD_ID = "countercraft";
 	/** The release name players see ("BETA 1.1"); the jar's version (fabric.mod.json) stays a plain number for Fabric and the build. */
-	public static final String RELEASE = "BETA 1.2";
+	public static final String RELEASE = "BETA 1.2.1";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_ID);
 
 	/** Damage types (data/countercraft/damage_type/*.json); all bypass vanilla armor and i-frames, like CS2. */
@@ -252,6 +252,7 @@ public class CounterCraft implements ModInitializer {
 			CsMove.setServer(handler.getPlayer().getUUID(), false);
 		});
 		Combat.init();
+		dev.countercraft.gun.LagCompensation.init();
 		dev.countercraft.team.FriendlyFire.init();
 		dev.countercraft.team.TeamList.init();
 		VersionCheck.init();

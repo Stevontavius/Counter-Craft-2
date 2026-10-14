@@ -53,5 +53,27 @@ public final class SurfRamps {
 			}
 		});
 		CounterCraft.LOG.info("[countercraft] {} surf ramps", FROM.size());
+		// CS2 takes no fall damage on surf ramps: CS movement never stands on one (it slides), so a fall onto a ramp, and
+		// the slide down it, would still add up to fall damage when you reach the ground. Touching a ramp ends the fall.
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
+			for (var p : server.getPlayerList().getPlayers()) {
+				if (p.fallDistance > 0 && touchesRamp(p)) {
+					p.resetFallDistance();
+				}
+			}
+		});
+	}
+
+	/** Within a tenth of a block of a surf ramp's block. */
+	public static boolean touchesRamp(net.minecraft.world.entity.Entity e) {
+		net.minecraft.world.phys.AABB box = e.getBoundingBox().inflate(0.1);
+		for (net.minecraft.core.BlockPos pos : net.minecraft.core.BlockPos.betweenClosed(net.minecraft.util.Mth.floor(box.minX),
+				net.minecraft.util.Mth.floor(box.minY), net.minecraft.util.Mth.floor(box.minZ), net.minecraft.util.Mth.floor(box.maxX),
+				net.minecraft.util.Mth.floor(box.maxY), net.minecraft.util.Mth.floor(box.maxZ))) {
+			if (e.level().getBlockState(pos).getBlock() instanceof SurfRampBlock) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

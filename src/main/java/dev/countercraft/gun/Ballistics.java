@@ -250,38 +250,46 @@ public final class Ballistics {
 		return traceEntity(level, shooter, from, dir, maxDist, java.util.Set.of());
 	}
 
-	/** As above, passing over {@code skip} (bodies the bullet already went through). */
+	/**
+	 * As above, passing over {@code skip} (bodies the bullet already went through). Each target is traced where the shooter
+	 * saw it ({@link LagCompensation}): at the first of those moments the ray hits it.
+	 */
 	public static EntityHit traceEntity(ServerLevel level, Entity shooter, Vec3 from, Vec3 dir, double maxDist, java.util.Set<Entity> skip) {
-		Vec3 end = from.add(dir.scale(maxDist));
-		AABB sweep = new AABB(from, end).inflate(1.0);
+		AABB sweep = new AABB(from, from.add(dir.scale(maxDist))).inflate(LagCompensation.REACH);
 		EntityHit best = null;
 		for (Entity e : level.getEntities(shooter, sweep, x -> hittable(x, shooter) && !skip.contains(owner(x)))) {
-			if (Hitboxes.uses(e)) {
-				Hitboxes.Hit h = Hitboxes.trace(e, from, dir, maxDist);
-				if (h != null && (best == null || h.distance() < best.distance())) {
-					best = new EntityHit(e, h.point(), h.distance(), h.group());
-				}
-			} else {
-				// the head from the mob's own model (it can stick out of the box), else the box
-				MobHeads.Hit head = MobHeads.trace(e, from, dir, maxDist);
-				if (head != null) {
-					if (best == null || head.distance() < best.distance()) {
-						best = new EntityHit(e, head.point(), head.distance(), Hitboxes.HEAD);
+			for (Vec3 shift : LagCompensation.shifts(e, shooter)) {
+				// the target where it was = the ray moved by how far it has gone since, against the target as it is
+				EntityHit h = traceOne(e, from.add(shift), dir, maxDist);
+				if (h != null) {
+					if (best == null || h.distance() < best.distance()) {
+						best = new EntityHit(e, h.point().subtract(shift), h.distance(), h.group());
 					}
-					continue;
-				}
-				AABB box = e.getBoundingBox().inflate(e.getPickRadius());
-				Vec3 p = box.contains(from) ? from : box.clip(from, end).orElse(null);
-				if (p != null) {
-					double d = from.distanceTo(p);
-					if (best == null || d < best.distance()) {
-						int group = MobHeads.has(e) ? MobHeads.bodyGroup(e, p) : headshot(e, p) ? Hitboxes.HEAD : Hitboxes.GENERIC;
-						best = new EntityHit(e, p, d, group);
-					}
+					break;
 				}
 			}
 		}
 		return best;
+	}
+
+	/** One entity: CS2 capsules, a mob's model head, else its box. */
+	private static EntityHit traceOne(Entity e, Vec3 from, Vec3 dir, double maxDist) {
+		if (Hitboxes.uses(e)) {
+			Hitboxes.Hit h = Hitboxes.trace(e, from, dir, maxDist);
+			return h == null ? null : new EntityHit(e, h.point(), h.distance(), h.group());
+		}
+		// the head from the mob's own model (it can stick out of the box), else the box
+		MobHeads.Hit head = MobHeads.trace(e, from, dir, maxDist);
+		if (head != null) {
+			return new EntityHit(e, head.point(), head.distance(), Hitboxes.HEAD);
+		}
+		AABB box = e.getBoundingBox().inflate(e.getPickRadius());
+		Vec3 p = box.contains(from) ? from : box.clip(from, from.add(dir.scale(maxDist))).orElse(null);
+		if (p == null) {
+			return null;
+		}
+		int group = MobHeads.has(e) ? MobHeads.bodyGroup(e, p) : headshot(e, p) ? Hitboxes.HEAD : Hitboxes.GENERIC;
+		return new EntityHit(e, p, from.distanceTo(p), group);
 	}
 
 	/**

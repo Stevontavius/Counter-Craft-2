@@ -32,8 +32,8 @@ abstract class PlayerFallMixin {
 		if (!(self.level() instanceof ServerLevel level) || !CsMove.enabled(self) || self.getAbilities().mayfly) {
 			return;
 		}
-		if (self.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING)) {
-			cir.setReturnValue(false);
+		if (self.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING) || dev.countercraft.block.SurfRamps.touchesRamp(self)) {
+			cir.setReturnValue(false); // a surf ramp: no fall damage, as in CS2
 			return;
 		}
 		double extraSafe = self.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.SAFE_FALL_DISTANCE) - MINECRAFT_SAFE_FALL;
