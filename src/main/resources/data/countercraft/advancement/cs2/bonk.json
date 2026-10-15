@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/root",
+ "display": {
+  "icon": {
+   "id": "countercraft:decoy"
+  },
+  "title": {
+   "text": "Bonk!"
+  },
+  "description": {
+   "text": "Kill a hostile mob with the impact of a thrown grenade"
+  },
+  "frame": "challenge",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

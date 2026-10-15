@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/ace",
+ "display": {
+  "icon": {
+   "id": "countercraft:awp"
+  },
+  "title": {
+   "text": "Collateral Damage"
+  },
+  "description": {
+   "text": "Kill 3 mobs with one bullet"
+  },
+  "frame": "task",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

@@ -8,15 +8,16 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 /**
  * Server to client: the server's CS2 cvars the client predicts with (sv_infinite_ammo, sv_maxvelocity, sv_airaccelerate,
- * sv_staminamax, sv_staminajumpcost, sv_staminalandcost).
+ * sv_staminamax, sv_staminajumpcost, sv_staminalandcost, sv_autobunnyhopping, sv_enablebunnyhopping).
  */
-public record CvarsPayload(int infiniteAmmo, int maxVelocity, int airAccelerate, float staminaMax, float staminaJumpCost, float staminaLandCost)
-		implements CustomPacketPayload {
+public record CvarsPayload(int infiniteAmmo, int maxVelocity, int airAccelerate, float staminaMax, float staminaJumpCost, float staminaLandCost,
+		boolean autoBhop, boolean enableBhop) implements CustomPacketPayload {
 	public static final Type<CvarsPayload> TYPE = new Type<>(CounterCraft.id("cvars"));
 	public static final StreamCodec<ByteBuf, CvarsPayload> CODEC = StreamCodec.composite(
 			ByteBufCodecs.VAR_INT, CvarsPayload::infiniteAmmo, ByteBufCodecs.VAR_INT, CvarsPayload::maxVelocity,
 			ByteBufCodecs.VAR_INT, CvarsPayload::airAccelerate, ByteBufCodecs.FLOAT, CvarsPayload::staminaMax,
-			ByteBufCodecs.FLOAT, CvarsPayload::staminaJumpCost, ByteBufCodecs.FLOAT, CvarsPayload::staminaLandCost, CvarsPayload::new);
+			ByteBufCodecs.FLOAT, CvarsPayload::staminaJumpCost, ByteBufCodecs.FLOAT, CvarsPayload::staminaLandCost,
+			ByteBufCodecs.BOOL, CvarsPayload::autoBhop, ByteBufCodecs.BOOL, CvarsPayload::enableBhop, CvarsPayload::new);
 
 	@Override
 	public Type<? extends CustomPacketPayload> type() {

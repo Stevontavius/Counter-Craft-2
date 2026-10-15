@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/root",
+ "display": {
+  "icon": {
+   "id": "countercraft:smokegrenade"
+  },
+  "title": {
+   "text": "Smoke Screen"
+  },
+  "description": {
+   "text": "Escape a hostile mob's pursuit using smoke"
+  },
+  "frame": "task",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

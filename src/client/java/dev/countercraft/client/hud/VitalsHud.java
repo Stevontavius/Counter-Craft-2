@@ -19,7 +19,9 @@ import net.minecraft.world.item.Items;
  * <ul>
  * <li>Health: Minecraft's heart sprite in its current state, like the vanilla bar (poisoned, withered, frozen,
  * hardcore, blinking after damage); health as % of max (CS2 HP: 100 HP is 20 health); absorption adds a golden
- * "+N%".</li>
+ * "+N%". With a planted C4 in reach, a red "-N%": what its blast would take now; if that's lethal, the heart becomes
+ * the warning triangle (⚠, as the Zeus-in-water warning's) and both flash with the bomb's beeps (full on each beep,
+ * fading until the next; its last seconds, hard on and off).</li>
  * <li>Armor: CS2 kevlar shows an iron chestplate, kevlar + helmet adds an iron helmet over it, with the CS2 armor value.
  * Without kevlar, the Minecraft armor being worn shows instead (its chestplate / helmet, armor points as % of 20);
  * with neither, a faded chestplate and 0%.</li>
@@ -57,9 +59,28 @@ public final class VitalsHud {
 		// health
 		boolean hardcore = mc.level != null && mc.level.getLevelData().isHardcore();
 		boolean blink = p.hurtTime > 0 && (p.hurtTime / 3) % 2 == 1;
-		// vanilla layers the heart over its container (the outline)
-		sprite(g, Identifier.withDefaultNamespace("hud/heart/container" + (hardcore ? "_hardcore" : "") + (blink ? "_blinking" : "")), x, y, icon);
-		sprite(g, heart(p, hardcore, blink), x, y, icon);
+		// a planted C4 in reach: what its blast would take if it went off now; if that kills, the heart becomes the
+		// warning sign, and both flash
+		float blast = dev.countercraft.gun.PlantedC4.damageTo(p);
+		boolean lethal = blast > 0f && blast >= p.getHealth() + p.getAbsorptionAmount();
+		// the flash keeps time with the bomb closest to going off (its beeps)
+		float flash = 1f;
+		int soonest = Integer.MAX_VALUE;
+		for (dev.countercraft.gun.PlantedC4 bomb : p.level().getEntitiesOfClass(dev.countercraft.gun.PlantedC4.class,
+				p.getBoundingBox().inflate(dev.countercraft.gun.PlantedC4.BLAST_RADIUS))) {
+			if (bomb.fuseAtBeep() < soonest) {
+				soonest = bomb.fuseAtBeep();
+				flash = bomb.warningFlash();
+			}
+		}
+		if (lethal) {
+			// the warning triangle of the Zeus-in-water and GPU warnings, bold red, in the heart's place
+			CsUi.text(g, "§l⚠", x + icon / 2, y + icon * 0.05f, ICON * 1.1f, h, Math.round(flash * 255) << 24 | 0xFF2A2A, 0);
+		} else {
+			// vanilla layers the heart over its container (the outline)
+			sprite(g, Identifier.withDefaultNamespace("hud/heart/container" + (hardcore ? "_hardcore" : "") + (blink ? "_blinking" : "")), x, y, icon);
+			sprite(g, heart(p, hardcore, blink), x, y, icon);
+		}
 		x += icon + 10 * k;
 		String hp = pct(p.getHealth() / p.getMaxHealth());
 		CsUi.text(g, hp, x, textY, TEXT, h, 0xFFFFFFFF, -1);
@@ -68,6 +89,11 @@ public final class VitalsHud {
 			String abs = " +" + pct(p.getAbsorptionAmount() / p.getMaxHealth());
 			CsUi.text(g, abs, x, textY, TEXT, h, 0xFFFFD83A, -1);
 			x += CsUi.textWidth(abs, TEXT, h);
+		}
+		if (blast > 0f) {
+			String dmg = " -" + pct(Math.min(blast, p.getHealth() + p.getAbsorptionAmount()) / p.getMaxHealth());
+			CsUi.text(g, dmg, x, textY, TEXT, h, (lethal ? Math.round(flash * 255) << 24 : 0xFF000000) | 0xFF3030, -1);
+			x += CsUi.textWidth(dmg, TEXT, h);
 		}
 		x += 40 * k;
 

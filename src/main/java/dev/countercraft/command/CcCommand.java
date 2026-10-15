@@ -25,7 +25,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * {@code /cc give <weapon|all>}, {@code /cc money <amount>} (your CS2 cash) and {@code /cc test <gun>}. The test is the oracle for the weapon core: it spawns a
+ * {@code /cc give <weapon|all>} ({@code /cc give beta c4}: the C4 test's), {@code /cc money <amount>} (your CS2 cash) and {@code /cc test <gun>}. The test is the oracle for the weapon core: it spawns a
  * still zombie 10 blocks ahead, fires one body shot and one head shot, and logs the damage each one dealt.
  */
 public final class CcCommand {
@@ -36,6 +36,7 @@ public final class CcCommand {
 				.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 				.then(Commands.literal("give")
 						.then(Commands.literal("all").executes(CcCommand::giveAll))
+						.then(Commands.literal("beta").then(Commands.literal("c4").executes(CcCommand::giveC4)))
 						.then(Commands.argument("weapon", StringArgumentType.word())
 								.suggests((c, b) -> SharedSuggestionProvider.suggest(weapons().keySet(), b))
 								.executes(ctx -> give(ctx, 0))
@@ -65,12 +66,27 @@ public final class CcCommand {
 		return item;
 	}
 
-	/** Every CS item by weapon id: guns, knives and grenades. */
+	/** Every CS item by weapon id: guns, knives and grenades (the C4: {@code /cc give beta c4}). */
 	private static Map<String, Item> weapons() {
 		Map<String, Item> all = new LinkedHashMap<>(CounterCraft.GUNS);
 		all.putAll(CounterCraft.KNIVES);
 		all.putAll(CounterCraft.GRENADES);
 		return all;
+	}
+
+	/** {@code /cc give beta c4}: a C4 into its CS slot, with the C4 test on only ({@code /beta test_c4 1}). */
+	private static int giveC4(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+		ServerPlayer player = ctx.getSource().getPlayerOrException();
+		if (!dev.countercraft.team.CsInventory.c4Test(player)) {
+			ctx.getSource().sendFailure(Component.literal("The C4 test is off (/beta test_c4 1)"));
+			return 0;
+		}
+		ItemStack stack = new ItemStack(CounterCraft.C4);
+		if (!dev.countercraft.team.CsInventory.give(player, stack)) {
+			player.getInventory().add(stack);
+		}
+		ctx.getSource().sendSuccess(() -> Component.literal("Gave c4"), false);
+		return 1;
 	}
 
 	private static int give(CommandContext<CommandSourceStack> ctx, int finish) throws CommandSyntaxException {

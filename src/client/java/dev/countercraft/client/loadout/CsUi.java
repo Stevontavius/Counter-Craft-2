@@ -38,6 +38,11 @@ public final class CsUi {
 
 	/** Text at a CS2 font size (px), scaled from Minecraft's 9 px line; align -1 left, 0 centre, 1 right. */
 	public static void text(GuiGraphicsExtractor g, String s, float x, float y, float sizePx, int screenH, int color, int align) {
+		text(g, s, x, y, sizePx, screenH, color, align, true);
+	}
+
+	/** As above; {@code shadow} false: no drop shadow (dark text on a light tag). */
+	public static void text(GuiGraphicsExtractor g, String s, float x, float y, float sizePx, int screenH, int color, int align, boolean shadow) {
 		Font font = Minecraft.getInstance().font;
 		float sc = sizePx * k(screenH) / 9f;
 		float w = font.width(s) * sc;
@@ -46,7 +51,7 @@ public final class CsUi {
 		pose.pushMatrix();
 		pose.translate(x0, y);
 		pose.scale(sc, sc);
-		g.text(font, s, 0, 0, color, true);
+		g.text(font, s, 0, 0, color, shadow);
 		pose.popMatrix();
 	}
 
@@ -105,6 +110,8 @@ public final class CsUi {
 				return "Kevlar + Helmet";
 			case "item_defuser":
 				return "Defuse Kit";
+			case dev.countercraft.team.Buying.NADE_KIT:
+				return "Nade Kit";
 			case dev.countercraft.team.ExtraAmmo.PRIMARY_ITEM:
 				return "Primary Magazine";
 			case dev.countercraft.team.ExtraAmmo.SECONDARY_ITEM:

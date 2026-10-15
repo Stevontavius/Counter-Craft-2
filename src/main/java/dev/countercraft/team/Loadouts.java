@@ -69,8 +69,8 @@ public final class Loadouts {
 	public static final List<Fixed> EQUIPMENT = List.of(
 			new Fixed("item_kevlar", 650, BOTH),
 			new Fixed("item_assaultsuit", 1000, BOTH),
-			new Fixed("weapon_taser", 200, BOTH));
-	// the defuse kit (item_defuser, $400, CT) is left out until there's a bomb to defuse
+			new Fixed("weapon_taser", 200, BOTH),
+			new Fixed("item_defuser", 400, CT)); // only with the C4 test on (Buying.allowed)
 
 	/** Spare magazines (CS 1.6 style, not in CS2; prices are the mod's own): 3 magazines for the primary / pistol. */
 	public static final List<Fixed> AMMO = List.of(

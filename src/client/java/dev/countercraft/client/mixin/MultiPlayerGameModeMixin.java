@@ -17,7 +17,7 @@ abstract class MultiPlayerGameModeMixin {
 	@Inject(method = "handleCreativeModeItemAdd", at = @At("HEAD"), cancellable = true)
 	private void countercraft$csSlot(final ItemStack stack, final int slot, final CallbackInfo ci) {
 		int i = slot - CsSlots.MENU_START;
-		if (i >= 0 && i < CsInventory.SIZE) {
+		if (i >= 0 && i < CsInventory.MENU_SLOTS) {
 			ClientPlayNetworking.send(new CreativeCsSlotPayload(i, stack.copy()));
 			ci.cancel();
 		}

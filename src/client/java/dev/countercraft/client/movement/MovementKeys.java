@@ -18,7 +18,7 @@ public final class MovementKeys {
 	/** CS2 +duck. */
 	public static final KeyMapping CROUCH = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping("key.countercraft.crouch", InputConstants.Type.KEYBOARD, InputConstants.KEY_LCONTROL, CATEGORY));
-	/** Toggles sv_autobunnyhopping (unbound by default; /sv_autobunnyhopping works too). */
+	/** Toggles the server's sv_autobunnyhopping (operators; unbound by default; /sv_autobunnyhopping works too). */
 	public static final KeyMapping AUTO_BHOP = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping("key.countercraft.auto_bhop", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
 

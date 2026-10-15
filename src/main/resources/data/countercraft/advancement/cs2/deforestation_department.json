@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/bonk",
+ "display": {
+  "icon": {
+   "id": "minecraft:oak_log"
+  },
+  "title": {
+   "text": "Deforestation Department"
+  },
+  "description": {
+   "text": "Kill a hostile mob with a decoy explosion"
+  },
+  "frame": "challenge",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

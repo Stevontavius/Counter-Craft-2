@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/eco_round",
+ "display": {
+  "icon": {
+   "id": "minecraft:gold_block"
+  },
+  "title": {
+   "text": "Money Talks"
+  },
+  "description": {
+   "text": "Earn $10,000 in mob bounties during one night"
+  },
+  "frame": "challenge",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

@@ -89,6 +89,18 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 
 	/** CS damage of a grenade hitting someone in flight. */
 	private static final float IMPACT_DAMAGE = 1f;
+	/** A grenade hitting a mob in flight: half a heart (Counter-Craft's rule; players take CS2's 1 damage). */
+	private static final float MOB_IMPACT_HP = 1f;
+	/**
+	 * The decoy's pop against mobs (Counter-Craft's rule; it doesn't hurt players): mobs within this many blocks take
+	 * {@link #DECOY_POP_HP} at the centre, half that at the edge, not through walls.
+	 */
+	private static final double DECOY_POP_RADIUS = 3.0;
+	private static final float DECOY_POP_HP = 6f;
+	/** Times it bounced off a wall (a kill after one is a bank shot). */
+	private int wallBounces;
+	/** It smashed through glass on its way (a kill after is "through a window"). */
+	private boolean throughWindow;
 	/** The creature the last hull trace stopped at (null for the world), and the last one this grenade hurt. */
 	private Entity lastHitEntity;
 	private Entity lastDamaged;
@@ -265,12 +277,13 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		}
 		String k = kind();
 		if (hit.player() && lastHitEntity != null && state() == FLYING && lastHitEntity != lastDamaged) {
-			// CS2: a grenade that hits someone in flight does 1 damage (once per creature it bounces off)
+			// CS2: a grenade that hits someone in flight does 1 damage (once per creature it bounces off); a mob: half a heart
 			lastDamaged = lastHitEntity;
 			Entity target = lastHitEntity;
 			ServerLevel sl = (ServerLevel) level();
+			dev.countercraft.Combat.markHit(getOwner(), target, k, dev.countercraft.net.KillFeedPayload.F_IMPACT | killFlags(), getId());
 			target.hurtServer(sl, new DamageSource(CounterCraft.damageType(sl, CounterCraft.GRENADE), this, getOwner()),
-					IMPACT_DAMAGE * Ballistics.CS_TO_MC);
+					target instanceof net.minecraft.world.entity.player.Player ? IMPACT_DAMAGE * Ballistics.CS_TO_MC : MOB_IMPACT_HP);
 		}
 		if (("molotov".equals(k) || "incgrenade".equals(k)) && state() == FLYING && !hit.player()
 				&& hit.normal().y >= Math.cos(Math.toRadians(30))) {
@@ -280,6 +293,9 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 			startEffect(BURNING);
 			sound(def().sounds().get("detonate"), 1.5f);
 			return true;
+		}
+		if (!hit.player() && Math.abs(hit.normal().y) < 0.7) {
+			wallBounces++;
 		}
 		if (sim.impactSpeed > 100.0) {
 			sound(def().sounds().get("bounce"), (float) Math.min(1.0, 0.3 + sim.impactSpeed / 1000.0));
@@ -300,6 +316,7 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		for (int i = 0; i < 4 && h.block() != null && level() instanceof ServerLevel sl && sim.vel.length() > GLASS_BREAK_SPEED
 				&& Ballistics.glass(sl.getBlockState(h.block())) && getOwner() instanceof LivingEntity thrower && Ballistics.mayBreak(sl, thrower, h.block()); i++) {
 			sl.destroyBlock(h.block(), false, this);
+			throughWindow = true;
 			h = hullTrace(level(), this, a.scale(1.0 / UNITS), b.scale(1.0 / UNITS));
 		}
 		if (h.normal() != null) {
@@ -434,6 +451,7 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 			case SMOKING -> {
 				if (stAge % 20 == 0) {
 					dev.countercraft.BossArmor.smokeHiss(level, position(), SMOKE_RADIUS);
+					calmBees(level);
 				}
 				if (stAge >= SMOKE_TICKS) {
 					sound(def().sounds().get("clear"), 0.8f);
@@ -454,22 +472,41 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 
 	/** Glass within this many blocks of an HE blast breaks. */
 	private static final double HE_GLASS_RADIUS = 2.5;
+	/** TNT within this many blocks of an HE blast goes off. */
+	private static final double HE_TNT_RADIUS = 2.5;
+	/** An HE in water: this much more damage and radius against mobs (Counter-Craft's rule, not CS2's: water carries the blast). */
+	private static final double UNDERWATER = 2.0;
+	/** How hard an HE shoves the mobs it doesn't kill (blocks/tick, at the centre) and how long they're dazed. */
+	private static final double STAGGER_PUSH = 0.9;
+	private static final int STAGGER_TICKS = 20;
+	/** Slimes and magma cubes an HE killed: they don't split (SlimeSplitMixin). */
+	public static final java.util.Set<Entity> NO_SPLIT = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
-	/** HE: CS damage 99 within 350 units, Gaussian falloff (sigma = radius / 3), blocked by walls. */
+	/**
+	 * HE: CS damage 99 within 350 units, Gaussian falloff (sigma = radius / 3), blocked by walls. Against mobs (Counter-
+	 * Craft's rules; players always take CS2's): {@code sv_grenade_mob_damage} times the damage, survivors are shoved
+	 * and dazed, creepers caught in it blow up, slimes it kills don't split, silverfish and endermites always die; in
+	 * water it's twice as strong and wide against them, and kills the fish and squid in it. TNT next to it goes off.
+	 */
 	private void explodeHe(ServerLevel level) {
 		Guns.GrenadeDef d = def();
-		double radius = d.radius() / 39.37;
-		double sigma = d.radius() / 3.0;
 		Vec3 c = position().add(0, 0.1, 0);
+		boolean wet = level.getFluidState(BlockPos.containing(c)).is(net.minecraft.tags.FluidTags.WATER);
+		double radius = d.radius() * (wet ? UNDERWATER : 1.0) / 39.37; // (the furthest anything can be hit)
 		level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, c.x, c.y, c.z, 1, 0, 0, 0, 0);
-		level.sendParticles(ParticleTypes.LARGE_SMOKE, c.x, c.y, c.z, 30, 1.2, 0.8, 1.2, 0.02);
+		level.sendParticles(wet ? ParticleTypes.BUBBLE : ParticleTypes.LARGE_SMOKE, c.x, c.y, c.z, wet ? 120 : 30, 1.2, 0.8, 1.2, 0.02);
 		sound(d.sounds().get("detonate"), 3f);
-		// the blast smashes the glass right around it
+		// the blast smashes the glass right around it, and sets off TNT
 		if (getOwner() instanceof LivingEntity thrower) {
-			int r = (int) Math.ceil(HE_GLASS_RADIUS);
+			int r = (int) Math.ceil(Math.max(HE_GLASS_RADIUS, HE_TNT_RADIUS));
 			for (BlockPos p : BlockPos.betweenClosed(BlockPos.containing(c).offset(-r, -r, -r), BlockPos.containing(c).offset(r, r, r))) {
-				if (Vec3.atCenterOf(p).distanceTo(c) <= HE_GLASS_RADIUS && Ballistics.glass(level.getBlockState(p)) && Ballistics.mayBreak(level, thrower, p)) {
+				double dist = Vec3.atCenterOf(p).distanceTo(c);
+				BlockState st = level.getBlockState(p);
+				if (dist <= HE_GLASS_RADIUS && Ballistics.glass(st) && Ballistics.mayBreak(level, thrower, p)) {
 					level.destroyBlock(p, false, this);
+				} else if (dist <= HE_TNT_RADIUS && st.getBlock() instanceof net.minecraft.world.level.block.TntBlock && Ballistics.mayBreak(level, thrower, p)
+						&& net.minecraft.world.level.block.TntBlock.prime(level, p.immutable())) {
+					level.removeBlock(p.immutable(), false);
 				}
 			}
 		}
@@ -482,17 +519,79 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 				nearest.put(owner, e);
 			}
 		}
+		float mobScale = (float) dev.countercraft.ServerCvars.value("sv_grenade_mob_damage");
+		int flags = killFlags();
+		List<net.minecraft.world.entity.monster.Creeper> creepers = new ArrayList<>();
 		for (Entity e : nearest.values()) {
 			Vec3 to = e.getBoundingBox().getCenter();
 			double distUnits = to.distanceTo(c) * 39.37;
-			if (distUnits > d.radius() || !visible(level, c, to)) {
+			// in water, mobs are hit twice as hard over twice the radius; players always as in CS2
+			double water = wet && !(e instanceof net.minecraft.world.entity.player.Player) ? UNDERWATER : 1.0;
+			double radiusUnits = d.radius() * water;
+			double sigma = radiusUnits / 3.0;
+			if (distUnits > radiusUnits || !visible(level, c, to)) {
 				continue;
 			}
-			double cs = d.damage() * Math.exp(-(distUnits * distUnits) / (2 * sigma * sigma));
+			double falloff = Math.exp(-(distUnits * distUnits) / (2 * sigma * sigma));
+			double cs = d.damage() * water * falloff;
 			cs = dev.countercraft.Combat.afterArmor(e, (float) cs, HE_ARMOR_RATIO);
-			dev.countercraft.Combat.markHit(getOwner(), e, "hegrenade", 0);
-			e.hurtServer(level, new DamageSource(CounterCraft.damageType(level, CounterCraft.GRENADE), this, getOwner()), (float) cs * Ballistics.CS_TO_MC);
+			float hp = (float) cs * Ballistics.CS_TO_MC;
+			LivingEntity mob = e instanceof LivingEntity le && !(e instanceof net.minecraft.world.entity.player.Player)
+					&& dev.countercraft.BossFights.bounty(le) <= 0 ? le : null; // (bosses keep their own balance)
+			if (mob != null) {
+				hp *= mobScale;
+				if (mob instanceof net.minecraft.world.entity.monster.Silverfish || mob instanceof net.minecraft.world.entity.monster.Endermite
+						|| (wet && (mob instanceof net.minecraft.world.entity.animal.fish.AbstractFish || mob instanceof net.minecraft.world.entity.animal.squid.Squid))) {
+					hp = Math.max(hp, Ballistics.lethal(mob));
+				}
+			}
+			dev.countercraft.Combat.markHit(getOwner(), e, "hegrenade", flags, getId());
+			e.hurtServer(level, new DamageSource(CounterCraft.damageType(level, CounterCraft.GRENADE), this, getOwner()), hp);
+			if (mob == null) {
+				continue;
+			}
+			if (mob instanceof net.minecraft.world.entity.monster.cubemob.AbstractCubeMob && mob.isDeadOrDying()) {
+				NO_SPLIT.add(mob);
+			}
+			if (mob instanceof net.minecraft.world.entity.monster.Creeper cr) {
+				creepers.add(cr);
+			} else if (mob instanceof net.minecraft.world.entity.Mob m && !mob.isDeadOrDying()) {
+				// staggered: shoved away from the blast, and dazed for a moment
+				Vec3 away = to.subtract(c).multiply(1, 0, 1);
+				away = away.lengthSqr() < 1e-6 ? Vec3.ZERO : away.normalize();
+				double k = STAGGER_PUSH * falloff;
+				m.push(away.x * k, 0.2 + 0.25 * k, away.z * k);
+				dev.countercraft.MobVision.stun(m, STAGGER_TICKS);
+			}
 		}
+		// a chain reaction: creepers caught in it go off (the ones it killed too, after dropping their loot)
+		for (net.minecraft.world.entity.monster.Creeper cr : creepers) {
+			if (!cr.isRemoved()) {
+				((dev.countercraft.mixin.CreeperAccessor) cr).countercraft$explode();
+			}
+		}
+	}
+
+	/** What its kills carry: a bank shot (it bounced off a wall), through a window (it smashed glass). */
+	private int killFlags() {
+		return (wallBounces > 0 ? dev.countercraft.net.KillFeedPayload.F_BANK : 0) | (throughWindow ? dev.countercraft.net.KillFeedPayload.F_WINDOW : 0);
+	}
+
+	/** Smoke calms bees, as a campfire does (SmokeyHiveMixin lets you take honey in it): angry bees in the cloud stop. */
+	private void calmBees(ServerLevel level) {
+		Vec3 centre = position().add(0, SMOKE_CENTER, 0);
+		for (net.minecraft.world.entity.animal.bee.Bee b : level.getEntitiesOfClass(net.minecraft.world.entity.animal.bee.Bee.class,
+				getBoundingBox().inflate(SMOKE_RADIUS + 1), b -> b.isAngry() && b.position().distanceTo(centre) <= SMOKE_RADIUS + 1)) {
+			b.stopBeingAngry();
+			b.setTarget(null);
+		}
+	}
+
+	/** A smoke cloud covers this block (bees calm down, as over a campfire: SmokeyHiveMixin). */
+	public static boolean inSmoke(Level level, BlockPos pos) {
+		Vec3 at = Vec3.atCenterOf(pos);
+		return !level.getEntitiesOfClass(GrenadeEntity.class, new AABB(pos).inflate(SMOKE_RADIUS + 2),
+				g -> g.state() == SMOKING && g.position().add(0, SMOKE_CENTER, 0).distanceTo(at) <= SMOKE_RADIUS + 1).isEmpty();
 	}
 
 	/** Flashbang: every player who can see it goes white, longer when facing it and close (up to ~4.9 s). */
@@ -500,6 +599,8 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		Vec3 c = position().add(0, 0.2, 0);
 		level.sendParticles(ParticleTypes.END_ROD, c.x, c.y, c.z, 40, 0.1, 0.1, 0.1, 0.35);
 		sound(def().sounds().get("detonate"), 3f);
+		Entity owner = getOwner();
+		float teamFlash = (float) dev.countercraft.ServerCvars.value("sv_teamflash");
 		for (ServerPlayer p : level.players()) {
 			Vec3 eye = p.getEyePosition();
 			double dist = eye.distanceTo(c);
@@ -511,12 +612,17 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 			double facing = dot >= 0.8 ? 1.0 : Math.max(0.12, 0.12 + (dot + 1.0) / 1.8 * 0.88);
 			double near = dist <= 10 ? 1.0 : Math.max(0.0, 1.0 - (dist - 10) / 50);
 			float seconds = (float) (4.9 * facing * near);
+			// a teammate's flashbang (Counter-Craft's co-op rule): weaker and shorter, by sv_teamflash; your own: CS2's
+			float strength = p != owner && owner instanceof net.minecraft.world.entity.player.Player op && dev.countercraft.team.Teams.allies(p, op)
+					? teamFlash : 1f;
+			seconds *= strength;
 			if (seconds > 0.15f) {
-				ServerPlayNetworking.send(p, new FlashPayload(seconds));
-				dev.countercraft.Combat.flashed(p, seconds);
+				ServerPlayNetworking.send(p, new FlashPayload(seconds, strength));
+				dev.countercraft.Combat.flashed(p, seconds, strength);
 			}
 		}
 		// mobs: the same exposure (distance, sight, facing: where the mob's head looks)
+		int hostiles = 0;
 		for (net.minecraft.world.entity.Mob m : level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class, getBoundingBox().inflate(60))) {
 			Vec3 eye = m.getEyePosition();
 			double dist = eye.distanceTo(c);
@@ -528,8 +634,14 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 			double near = dist <= 10 ? 1.0 : Math.max(0.0, 1.0 - (dist - 10) / 50);
 			float seconds = (float) (4.9 * facing * near);
 			if (seconds > 0.15f) {
-				dev.countercraft.MobVision.flash(m, seconds);
+				dev.countercraft.MobVision.flash(m, seconds, owner);
+				if (m instanceof net.minecraft.world.entity.monster.Enemy && dev.countercraft.MobVision.blinded(m)) {
+					hostiles++;
+				}
 			}
+		}
+		if (hostiles >= 5 && owner instanceof ServerPlayer sp) {
+			dev.countercraft.Achievements.award(sp, "flash_photography");
 		}
 	}
 
@@ -575,19 +687,32 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		if (stAge % 40 == 1) {
 			sound(def().sounds().get("loop"), 1f);
 		}
+		FIRES.add(this);
+		if (stAge == 1 || stAge == 20) {
+			// mobs on their way re-plan around it (FirePathMixin), as it lights and once it has spread
+			for (net.minecraft.world.entity.Mob m : level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class, getBoundingBox().inflate(24),
+					m -> !m.getNavigation().isDone())) {
+				m.getNavigation().recomputePath();
+			}
+		}
 		if (stAge % 10 == 0) {
+			cook(level, r);
 			Guns.GrenadeDef d = def();
+			float mobScale = (float) dev.countercraft.ServerCvars.value("sv_inferno_mob_damage");
+			int flags = killFlags();
 			for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(r, 1.5, r))) {
 				double dx = e.getX() - getX();
 				double dz = e.getZ() - getZ();
 				// fire-immune mobs (and Fire Resistance) ignore the flames entirely: no damage, hit marker or burning
 				boolean immune = e.fireImmune() || e.hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE);
 				if (!immune && dx * dx + dz * dz <= r * r && Math.abs(e.getY() - getY()) < 1.5) {
-					dev.countercraft.Combat.markHit(getOwner(), e, "inferno", 0);
+					dev.countercraft.Combat.markHit(getOwner(), e, "inferno", flags, getId());
 					float fire = dev.countercraft.Combat.afterArmor(e, d.damage() * 0.5f, "molotov".equals(d.id()) ? 1.8f : 1.475f);
+					// mobs (Counter-Craft's rule): sv_inferno_mob_damage times as hot, and still burning a while after they leave
+					boolean mob = !(e instanceof net.minecraft.world.entity.player.Player) && dev.countercraft.BossFights.bounty(e) <= 0;
 					e.hurtServer(level, new DamageSource(CounterCraft.damageType(level, CounterCraft.FIRE), this, getOwner()),
-							fire * Ballistics.CS_TO_MC);
-					e.igniteForSeconds(1f);
+							fire * Ballistics.CS_TO_MC * (mob ? mobScale : 1f));
+					e.igniteForSeconds(mob ? LINGER_SECONDS : 1f);
 				}
 			}
 		}
@@ -597,8 +722,68 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		}
 	}
 
-	/** Decoy: fake AK fire in short bursts for 15 s, then a small pop. */
-	/** Decoy: bursts of the imitated gun's shots at its real fire rate, a pause, repeat; then pops. */
+	/** Mobs that leave a fire pool keep burning this long (s). */
+	private static final float LINGER_SECONDS = 4f;
+	/** Items lying in a fire pool this long (ticks) come out as a furnace would make them. */
+	private static final int COOK_TICKS = 40;
+	/** Burning fire pools, for mob pathing and spawning (FirePathMixin, FireSpawnMixin). */
+	private static final java.util.Set<GrenadeEntity> FIRES = java.util.concurrent.ConcurrentHashMap.newKeySet();
+	/** Nothing hostile spawns this close to a burning fire pool (blocks): its light. */
+	public static final double FIRE_LIGHT = 10;
+	/** Item entity id -> ticks it has lain in this pool. */
+	private final java.util.Map<Integer, Integer> cooking = new java.util.HashMap<>();
+
+	/** Smelts the item drops that have lain in the pool for {@link #COOK_TICKS} (raw iron to ingots, sand to glass). */
+	private void cook(ServerLevel level, double r) {
+		for (net.minecraft.world.entity.item.ItemEntity it : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+				getBoundingBox().inflate(r, 1.5, r))) {
+			double dx = it.getX() - getX();
+			double dz = it.getZ() - getZ();
+			if (dx * dx + dz * dz > r * r || Math.abs(it.getY() - getY()) >= 1.5 || cooking.merge(it.getId(), 10, Integer::sum) < COOK_TICKS) {
+				continue;
+			}
+			cooking.remove(it.getId());
+			ItemStack raw = it.getItem();
+			var in = new net.minecraft.world.item.crafting.SingleRecipeInput(raw);
+			level.recipeAccess().getRecipeFor(net.minecraft.world.item.crafting.RecipeType.SMELTING, in, level).ifPresent(h -> {
+				ItemStack out = h.value().assemble(in);
+				if (!out.isEmpty()) {
+					out.setCount(Math.min(out.getMaxStackSize(), out.getCount() * raw.getCount()));
+					it.setItem(out);
+					level.sendParticles(ParticleTypes.SMOKE, it.getX(), it.getY() + 0.2, it.getZ(), 6, 0.1, 0.1, 0.1, 0.01);
+				}
+			});
+		}
+	}
+
+	/** A burning fire pool covers this spot (mobs path around it: FirePathMixin). */
+	public static boolean inFirePool(Level level, double x, double y, double z) {
+		for (GrenadeEntity f : FIRES) {
+			if (f.isRemoved() || f.state() != BURNING) {
+				FIRES.remove(f);
+			} else if (f.level() == level && Math.abs(y - f.getY()) < 1.5) {
+				double dx = x - f.getX();
+				double dz = z - f.getZ();
+				double r = f.fireRadius(f.entityData.get(STATE_AGE)) + 0.5;
+				if (dx * dx + dz * dz <= r * r) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** A burning fire pool lights this spot: no hostile mob spawns here (FireSpawnMixin). */
+	public static boolean litByFire(Level level, BlockPos pos) {
+		for (GrenadeEntity f : FIRES) {
+			if (!f.isRemoved() && f.level() == level && Vec3.atCenterOf(pos).distanceToSqr(f.position()) <= FIRE_LIGHT * FIRE_LIGHT) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Decoy: bursts of the imitated gun's shots at its real fire rate, a pause, repeat; then pops (hurting mobs nearby). */
 	private void decoy(ServerLevel level, int stAge) {
 		GunSpec gun = Guns.ALL.getOrDefault(decoyGun, Guns.ALL.get("ak47"));
 		if (stAge >= nextDecoyShot && stAge < DECOY_TICKS) {
@@ -616,6 +801,18 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		if (stAge >= DECOY_TICKS) {
 			level.sendParticles(ParticleTypes.SMOKE, getX(), getY(), getZ(), 15, 0.2, 0.2, 0.2, 0.02);
 			sound(def().sounds().get("detonate"), 0.6f);
+			Vec3 c = position().add(0, 0.1, 0);
+			int flags = killFlags();
+			for (net.minecraft.world.entity.Mob m : level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class, new AABB(c, c).inflate(DECOY_POP_RADIUS),
+					Entity::isAlive)) {
+				Vec3 to = m.getBoundingBox().getCenter();
+				double dist = to.distanceTo(c);
+				if (dist <= DECOY_POP_RADIUS && visible(level, c, to)) {
+					dev.countercraft.Combat.markHit(getOwner(), m, "decoy", flags | dev.countercraft.net.KillFeedPayload.F_POP, getId());
+					m.hurtServer(level, new DamageSource(CounterCraft.damageType(level, CounterCraft.GRENADE), this, getOwner()),
+							(float) (DECOY_POP_HP * (1 - 0.5 * dist / DECOY_POP_RADIUS)));
+				}
+			}
 			discard();
 		}
 	}

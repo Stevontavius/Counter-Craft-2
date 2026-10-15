@@ -34,7 +34,8 @@ import net.minecraft.world.phys.Vec3;
  * default T / CT agent, knife and gloves). A dead bot comes back at the same spot 3 s later (after its ragdoll fell).
  * <ul>
  * <li>{@code /bot add t|ct [weapon]}: a bot here, holding the weapon (a gun id such as ak47, or knife; default: the
- * team's starting pistol). It's put 2 blocks in front of you, facing you.</li>
+ * team's starting pistol), or any Minecraft item (totem_of_undying, minecraft:shield...: held in the Minecraft hotbar,
+ * CS mode off). It's put 2 blocks in front of you, facing you.</li>
  * <li>{@code /bot remove}: all bots go. {@code /bot list}.</li>
  * </ul>
  * Bots leave nothing behind in the world's player data.
@@ -52,10 +53,10 @@ public final class TestBots {
 				.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 				.then(Commands.literal("add")
 						.then(Commands.literal(Teams.T).executes(c -> add(c, Teams.T, ""))
-								.then(Commands.argument("weapon", StringArgumentType.word()).suggests((c, b) -> SharedSuggestionProvider.suggest(weapons(), b))
+								.then(Commands.argument("weapon", StringArgumentType.greedyString()).suggests((c, b) -> SharedSuggestionProvider.suggest(weapons(), b))
 										.executes(c -> add(c, Teams.T, StringArgumentType.getString(c, "weapon")))))
 						.then(Commands.literal(Teams.CT).executes(c -> add(c, Teams.CT, ""))
-								.then(Commands.argument("weapon", StringArgumentType.word()).suggests((c, b) -> SharedSuggestionProvider.suggest(weapons(), b))
+								.then(Commands.argument("weapon", StringArgumentType.greedyString()).suggests((c, b) -> SharedSuggestionProvider.suggest(weapons(), b))
 										.executes(c -> add(c, Teams.CT, StringArgumentType.getString(c, "weapon"))))))
 				.then(Commands.literal("remove").executes(c -> {
 					int n = removeAll(c.getSource().getServer());
@@ -76,13 +77,32 @@ public final class TestBots {
 	private static List<String> weapons() {
 		List<String> out = new ArrayList<>(CounterCraft.GUNS.keySet());
 		out.add("knife");
+		for (net.minecraft.resources.Identifier id : net.minecraft.core.registries.BuiltInRegistries.ITEM.keySet()) {
+			if (!id.getNamespace().equals(CounterCraft.MOD_ID)) {
+				out.add(id.toString());
+			}
+		}
 		return out;
+	}
+
+	/** A CS weapon ("" the team's pistol, knife, a gun id; countercraft:ak47 counts as ak47). */
+	private static boolean csWeapon(String weapon) {
+		return weapon.isEmpty() || weapon.equals("knife") || CounterCraft.GUNS.containsKey(weapon);
+	}
+
+	/** A Minecraft item by its id (totem_of_undying or minecraft:totem_of_undying), or null. */
+	private static net.minecraft.world.item.Item mcItem(String id) {
+		net.minecraft.resources.Identifier key = net.minecraft.resources.Identifier.tryParse(id);
+		return key == null ? null : net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(key)
+				.filter(i -> i != net.minecraft.world.item.Items.AIR).orElse(null);
 	}
 
 	private static int add(CommandContext<CommandSourceStack> c, String team, String weapon) throws CommandSyntaxException {
 		ServerPlayer me = c.getSource().getPlayerOrException();
-		if (!weapon.isEmpty() && !weapon.equals("knife") && !CounterCraft.GUNS.containsKey(weapon)) {
-			c.getSource().sendFailure(Component.literal("Unknown weapon " + weapon));
+		weapon = weapon.trim();
+		weapon = weapon.startsWith(CounterCraft.MOD_ID + ":") ? weapon.substring(CounterCraft.MOD_ID.length() + 1) : weapon;
+		if (!csWeapon(weapon) && mcItem(weapon) == null) {
+			c.getSource().sendFailure(Component.literal("Unknown weapon or item " + weapon));
 			return 0;
 		}
 		// 2 blocks ahead on the ground plane, turned to face you
@@ -110,8 +130,18 @@ public final class TestBots {
 		return bot;
 	}
 
-	/** CS mode, holding the weapon (default: the team's starting pistol). */
+	/** CS mode, holding the weapon (default: the team's starting pistol); a Minecraft item: in the hotbar, CS mode off. */
 	private static void equip(BotPlayer bot, String weapon) {
+		if (!csWeapon(weapon)) {
+			if (CsInventory.active(bot)) {
+				CsInventory.toggle(bot);
+			}
+			net.minecraft.world.item.Item item = mcItem(weapon);
+			bot.getInventory().setItem(0, item == null ? ItemStack.EMPTY : new ItemStack(item));
+			bot.getInventory().setSelectedSlot(0);
+			bot.connection.send(new ClientboundSetHeldSlotPacket(0));
+			return;
+		}
 		if (!CsInventory.active(bot)) {
 			CsInventory.toggle(bot);
 		}

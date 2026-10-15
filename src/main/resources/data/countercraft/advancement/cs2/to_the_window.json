@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/bonk",
+ "display": {
+  "icon": {
+   "id": "minecraft:glass_pane"
+  },
+  "title": {
+   "text": "To the Window! To the Wall!"
+  },
+  "description": {
+   "text": "Throw a grenade through a window to kill a hostile mob"
+  },
+  "frame": "challenge",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

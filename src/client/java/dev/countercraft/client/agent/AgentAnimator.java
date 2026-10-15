@@ -40,6 +40,8 @@ public final class AgentAnimator {
 		public boolean uprightTorso;
 		/** CS2 m_flDeployDuration of the held weapon (how long its draw plays). */
 		public float deploySeconds = 1f;
+		/** Defusing a planted C4 (CS2's is_defusing pose). */
+		public boolean defusing;
 	}
 
 	private static final float TURN_THRESHOLD = 50f;
@@ -177,6 +179,7 @@ public final class AgentAnimator {
 		params.set("weapon_category", in.weaponCategory);
 		params.set("weapon_is_silenced", in.silenced);
 		params.set("weapon_ammo", in.ammo);
+		params.set("is_defusing", in.defusing);
 		params.set("flashed_amount", in.flashed);
 		params.set("action", action);
 		params.set("attack_type", attackType);

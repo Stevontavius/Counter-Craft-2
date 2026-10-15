@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/blind_luck",
+ "display": {
+  "icon": {
+   "id": "minecraft:creeper_head"
+  },
+  "title": {
+   "text": "Tactical Retreat"
+  },
+  "description": {
+   "text": "Stop a charging creeper with a flashbang"
+  },
+  "frame": "task",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

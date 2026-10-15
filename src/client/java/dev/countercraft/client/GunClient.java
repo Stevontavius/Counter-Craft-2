@@ -227,6 +227,7 @@ public final class GunClient {
 			released = true;
 		}
 		if (weapon == null) {
+			planting = false;
 			if (animator != null && tick < throwEnd) {
 				return; // the last grenade's throw plays out before the hand goes
 			}
@@ -243,6 +244,9 @@ public final class GunClient {
 		// switched weapon (or slot): draw, and nothing can be used until the draw is over (CS2 deploy time)
 		int slot = player.getInventory().getSelectedSlot();
 		if (!weapon.weaponId().equals(heldGun) || slot != heldSlot) {
+			if (planting) {
+				stopPlanting(); // switched away (or the bomb is down)
+			}
 			heldGun = weapon.weaponId();
 			heldSlot = slot;
 			recoil = new RecoilPattern.State();
@@ -270,6 +274,10 @@ public final class GunClient {
 		}
 		if (weapon instanceof GrenadeItem g) {
 			grenadeTick(g, fire, alt);
+			return;
+		}
+		if (weapon instanceof dev.countercraft.gun.C4Item) {
+			c4Tick(player, fire);
 			return;
 		}
 		GunSpec spec = held(player);
@@ -474,6 +482,41 @@ public final class GunClient {
 		throwEnd = tick + anim * 20.0;
 		drawEnd = throwEnd + grenade.def().deploy() * 20.0;
 		redraw = true;
+	}
+
+	private static boolean planting;
+	private static double plantStart;
+
+	/**
+	 * C4: holding attack plants it (CS2's plant clip; the server times it and roots the planter); letting go or leaving
+	 * the ground stops. Not before the draw is over.
+	 */
+	private static void c4Tick(LocalPlayer player, boolean fire) {
+		if (fire && !planting && !drawing() && player.onGround()) {
+			planting = true;
+			plantStart = tick;
+			ClientPlayNetworking.send(new dev.countercraft.net.C4ActionPayload(dev.countercraft.net.C4ActionPayload.PLANT_START, 0));
+			dev.countercraft.client.agent.AgentClient.local("action_c4_plant", "", 4f);
+			if (animator != null) {
+				animator.play("plant", 1f);
+			}
+		} else if (planting && (!fire || !player.onGround())) {
+			stopPlanting();
+		}
+	}
+
+	private static void stopPlanting() {
+		planting = false;
+		ClientPlayNetworking.send(new dev.countercraft.net.C4ActionPayload(dev.countercraft.net.C4ActionPayload.PLANT_STOP, 0));
+		dev.countercraft.client.agent.AgentClient.local("action_reset", "", 0f);
+		if (animator != null && animator.current().equals("plant")) {
+			animator.play(animator.idleRole(), 1f);
+		}
+	}
+
+	/** How far the planting has got, 0..1; -1 when not planting. */
+	public static float plantProgress() {
+		return planting ? (float) Math.min(1.0, (tick - plantStart) / dev.countercraft.gun.C4Item.PLANT_TICKS) : -1f;
 	}
 
 	/** The pin is pulled: the strength the throw would have now (1 left, 0 right, 0.5 both), else -1. */

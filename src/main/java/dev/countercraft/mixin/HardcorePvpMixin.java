@@ -27,7 +27,9 @@ abstract class HardcorePvpMixin {
 	@ModifyVariable(method = "hurtServer", at = @At("HEAD"), argsOnly = true)
 	private float countercraft$pvpResistance(final float amount, final ServerLevel level, final DamageSource source) {
 		ServerPlayer self = (ServerPlayer) (Object) this;
-		if (level.getLevelData().isHardcore() && source.getEntity() instanceof Player attacker && attacker != self) {
+		// the Zeus always kills, hardcore or not
+		if (level.getLevelData().isHardcore() && source.getEntity() instanceof Player attacker && attacker != self
+				&& !source.is(dev.countercraft.CounterCraft.ZEUS_KILL)) {
 			return amount / dev.countercraft.team.Economy.HARDCORE_PVP_RESISTANCE;
 		}
 		return amount;

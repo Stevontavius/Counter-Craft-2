@@ -410,6 +410,8 @@ ROLE_RULES = [
     ("stab", ("heavy_miss1_",), ()),
     ("stab_hit", ("heavy_hit1_",), ()),
     ("backstab", ("light_backstab_",), ("backstab2",)),
+    # the C4
+    ("plant", ("plant_",), ()),
     ("stab_backstab", ("heavy_backstab_",), ()),
     # grenades
     ("pullpin", ("pullpin_",), ()),
@@ -461,7 +463,8 @@ def convert_gun(g, cs2, assets, arms_glb, arms_dir, arms_skel, add_sound, gltf_f
     folder = a["clipDir"].rstrip("/").split("/")[-1]
     names = [p.stem for p in clip_dir.rglob("*.glb") if p.parent.name == folder]
     roles = pick_clips(names, g.get("silencer", "none"))
-    needed = {"knife": ("draw", "idle", "slash", "stab", "inspect"), "grenade": ("draw", "idle", "pullpin", "throw")}.get(
+    needed = {"knife": ("draw", "idle", "slash", "stab", "inspect"), "grenade": ("draw", "idle", "pullpin", "throw"),
+              "c4": ("draw", "idle", "plant", "inspect")}.get(
         g.get("kind"), ("draw", "idle", "shoot", "reload", "inspect"))
     missing = [r for r in needed if r not in roles]
     log(f"  mesh {choose_mesh(gun_glb).split('.')[-1]}, bones {gun_skel.names}, clips {roles}" + (f", MISSING {missing}" if missing else ""))
@@ -545,8 +548,8 @@ def convert_gun(g, cs2, assets, arms_glb, arms_dir, arms_skel, add_sound, gltf_f
             for n in names:
                 wstr(f, n)
     log(f"  wrote viewmodels/{gun_id}.cvm ({out.stat().st_size // 1024} KiB, {len(parts)} parts, attachments {[n for n, _, _ in atts]})")
-    if g.get("kind") == "grenade":
-        write_thrown(gun_id, gun_glb, gun_skel, assets)
+    if g.get("kind") in ("grenade", "c4"):
+        write_thrown(gun_id, gun_glb, gun_skel, assets)  # the C4's: the planted bomb
 
 
 def write_glove_arms(cs2, assets, arms_skel, cat, log):
@@ -917,6 +920,23 @@ def add_csgo(args, assets, sounds_json):
                  exclusive=args.csgo_only)
 
 
+# the C4's sounds (CS2's sound events) and the announcer's bomb lines
+EXTRA_EVENTS = ("c4.initiate", "c4.plant", "C4.PlantSound", "C4.PlantSound_10sec", "C4.ExplodeWarning", "c4.disarmstart",
+                "c4.disarmfinish", "c4.explode")
+EXTRA_FILES = {"announcer.bombpl": "sounds/vo/announcer/cs2_classic/bombpl.vsnd",
+               "announcer.bombdef": "sounds/vo/announcer/cs2_classic/bombdef.vsnd"}
+
+
+def write_extras(assets, add_sound, log, convert_c4):
+    """Extras: the C4 (viewmodel with its clips, the planted model, icon) and its sounds, the announcer's bomb lines."""
+    for event in EXTRA_EVENTS:
+        add_sound(event)
+    for sid, vsnd in EXTRA_FILES.items():
+        add_sound(sid, [vsnd], 1.0)
+    convert_c4()
+    log(f"extras: the C4, {len(EXTRA_EVENTS) + len(EXTRA_FILES)} sounds")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cs2", required=True, type=Path, help="CS2 install folder (the one containing game/)")
@@ -925,7 +945,7 @@ def main():
     ap.add_argument("--ffmpeg", type=Path, default=next((ROOT / "tools").glob("ffmpeg-dist/*/bin/ffmpeg.exe"), Path("ffmpeg")))
     ap.add_argument("--install", type=Path, help="copy the finished pack folder into this resourcepacks dir")
     ap.add_argument("--only", nargs="*", help="convert just these guns, merging into the existing pack")
-    ap.add_argument("--step", nargs="*", choices=["hud", "agent", "ui", "maps", "vmmaps", "voice", "arms", "musickits", "skins", "legacy", "agents", "gloves", "eyes", "ragdoll", "deathcam", "csgo", "pearl"], help="run just these steps, merging into the existing pack")
+    ap.add_argument("--step", nargs="*", choices=["hud", "agent", "ui", "maps", "vmmaps", "voice", "arms", "musickits", "skins", "legacy", "agents", "gloves", "eyes", "ragdoll", "deathcam", "csgo", "pearl", "extras"], help="run just these steps, merging into the existing pack")
     ap.add_argument("--csgo-only", action="store_true", help="with --csgo: CS:GO's weapon sounds replace CS2's (no style choice in game)")
     ap.add_argument("--since", help="with --step skins: OLD:NEW, the pack's step version and this one's: rebake only what changed")
     ap.add_argument("--csgo", nargs="?", const="auto", type=str,
@@ -1064,6 +1084,14 @@ def main():
             voice.convert(cs2, assets, add_sound, log)
         if "csgo" in args.step:
             add_csgo(args, assets, sounds_json)
+        if "extras" in args.step:
+            def convert_c4():
+                c4 = weapons.c4_entry()
+                convert_gun(c4, cs2, assets, arms_glb, arms_dir, arms_skel, add_sound, gltf_flags)
+                sys.path.insert(0, str(HERE / "agent"))
+                import agent
+                agent.write_gun_skeleton(cs2, c4["id"], c4["_asset"]["model"], assets / "agents")  # in agents' hands
+            write_extras(assets, add_sound, log, convert_c4)
         if "arms" in args.step:
             write_agent_arms(cs2, assets, arms_skel)
         guns = []

@@ -36,6 +36,14 @@ public final class Teams {
 	public static void init() {
 	}
 
+	/**
+	 * On the same side (as the kill award sees it): in hardcore every player is; otherwise anyone not on the other team
+	 * (a player who hasn't picked one is everyone's ally).
+	 */
+	public static boolean allies(Player a, Player b) {
+		return a.level().getLevelData().isHardcore() || !a.hasAttached(TEAM) || !b.hasAttached(TEAM) || of(a).equals(of(b));
+	}
+
 	public static String of(Player player) {
 		String t = player.getAttached(TEAM);
 		return CT.equals(t) ? CT : T;

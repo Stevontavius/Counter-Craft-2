@@ -26,7 +26,8 @@ import com.mojang.blaze3d.platform.InputConstants;
  * bar shows your cash ({@link dev.countercraft.team.Economy}; creative mode: free buy); what you can't afford is dimmed
  * with its price in red. CS2's sell back (Refunds): what you bought this round and haven't used shows "Refund" and its
  * price back; right-click it to refund it, or "Refund All" (sellbackall, Delete) in the nav bar. Rebuy / Autobuy and the
- * ground weapons list aren't there yet.
+ * ground weapons list aren't there yet. Counter-Craft's own: the nade kit at the end of the grenades, and grenades' raid
+ * (wartime) prices ({@link dev.countercraft.team.Buying}).
  */
 public final class BuyMenuScreen extends Screen {
 	private static final String[] TITLES = {"EQUIPMENT", "PISTOLS", "MID-TIER", "RIFLES", "GRENADES"};
@@ -47,7 +48,8 @@ public final class BuyMenuScreen extends Screen {
 		team = mc.player == null ? Teams.T : Teams.of(mc.player);
 		List<String> equipment = new ArrayList<>();
 		for (Loadouts.Fixed f : Loadouts.EQUIPMENT) {
-			if (f.teams().contains(team)) {
+			// the defuse kit: CTs, only with the C4 test on (/beta test_c4 1)
+			if (f.teams().contains(team) && (!f.item().equals("item_defuser") || mc.player != null && dev.countercraft.team.CsInventory.c4Test(mc.player))) {
 				equipment.add(f.item());
 			}
 		}
@@ -64,6 +66,7 @@ public final class BuyMenuScreen extends Screen {
 				grenades.add(f.item());
 			}
 		}
+		grenades.add(dev.countercraft.team.Buying.NADE_KIT);
 		columns.add(grenades);
 		// what the agent may be shown holding (and with which finish): load it in the background now, not on hover
 		for (List<String> c : columns) {
@@ -174,6 +177,12 @@ public final class BuyMenuScreen extends Screen {
 		boolean free = minecraft.player == null || dev.countercraft.team.Economy.freeBuy(minecraft.player);
 		CsUi.text(g, free ? "FREE BUY" : "$" + dev.countercraft.team.Economy.money(minecraft.player), x0 + 10 * k, (180 + 8) * k, 22, height,
 				free ? tc : 0xFF7ED37E, -1);
+		Integer war = minecraft.player == null ? null : minecraft.player.getAttached(dev.countercraft.team.Buying.WARTIME);
+		if (war != null && !free) {
+			// Counter-Craft: wartime pricing in a raid
+			String money = "$" + dev.countercraft.team.Economy.money(minecraft.player);
+			CsUi.text(g, "RAID: GRENADES -" + war + "%", x0 + 10 * k + CsUi.textWidth(money, 22, height) + 12 * k, (180 + 13) * k, 12, height, 0xFFDCB45A, -1);
+		}
 		if (free) {
 			CsUi.text(g, "CREATIVE MODE", x0 + 10 * k + CsUi.textWidth("FREE BUY", 22, height) + 12 * k, (180 + 13) * k, 12, height, 0x99000000 | rgb, -1);
 		}
@@ -235,7 +244,11 @@ public final class BuyMenuScreen extends Screen {
 					// your equipped finish under the weapon's name
 					CsUi.text(g, CsUi.fit(fin.name(), nameW, 11, height), b[0] + b[2] - 10 * k, b[1] + 22 * k, 11, height, 0xA0000000 | (textCol & 0xFFFFFF), 1);
 				}
-				CsUi.iconIn(g, item, b[0], b[1] + (fin != null ? 6 * k : 0), b[2], b[3], 0.45f, textCol);
+				if (item.equals(dev.countercraft.team.Buying.NADE_KIT)) {
+					kitIcons(g, b, textCol);
+				} else {
+					CsUi.iconIn(g, item, b[0], b[1] + (fin != null ? 6 * k : 0), b[2], b[3], 0.45f, textCol);
+				}
 				CsUi.text(g, "$" + price(item), b[0] + b[2] - 10 * k, b[1] + b[3] - 20 * k, 14, height, afford || owned ? textCol : 0xFFE05050, 1);
 				int back = refund(item);
 				if (back >= 0) {
@@ -272,6 +285,14 @@ public final class BuyMenuScreen extends Screen {
 				CsUi.text(g, back > 0 ? "Right-click to refund: +$" + back : "Right-click to refund", ix + 10 * k, iy + 64 * k, 14, height, 0xFFDCB45A, -1);
 			} else if (!afford) {
 				CsUi.text(g, "Insufficient funds", ix + 10 * k, iy + 64 * k, 14, height, 0xFFE05050, -1);
+			} else if (hovered.equals(dev.countercraft.team.Buying.NADE_KIT) && minecraft.player != null) {
+				var kit = dev.countercraft.team.Buying.kit(minecraft.player);
+				StringBuilder what = new StringBuilder();
+				for (String it : kit) {
+					what.append(what.length() > 0 ? ", " : "").append(CsUi.name(it));
+				}
+				CsUi.text(g, CsUi.fit(kit.isEmpty() ? "You carry all of it" : what + " (" + dev.countercraft.team.Buying.KIT_DISCOUNT + "% off)", 330 * k, 12, height),
+						ix + 10 * k, iy + 64 * k, 12, height, 0xBF000000 | rgb, -1);
 			}
 		}
 		// nav bar
@@ -312,8 +333,29 @@ public final class BuyMenuScreen extends Screen {
 		return dev.countercraft.client.skins.Skins.get(gun, LoadoutConfig.skin(team, gun));
 	}
 
-	/** What this item costs you now (Kevlar + Helmet with full kevlar: just the helmet, like CS2). */
+	/** The nade kit's tile: its four grenades in a row (the ones you already carry dimmed). */
+	private void kitIcons(GuiGraphicsExtractor g, float[] b, int col) {
+		var p = minecraft.player;
+		java.util.List<String> want = p == null ? java.util.List.of() : dev.countercraft.team.Buying.kit(p);
+		java.util.List<String> all = new ArrayList<>();
+		for (Loadouts.Fixed f : Loadouts.GRENADES) {
+			if (f.teams().contains(team) && !f.item().equals("weapon_decoy")) {
+				all.add(f.item());
+			}
+		}
+		float w = b[2] * 0.8f / all.size();
+		for (int i = 0; i < all.size(); i++) {
+			int c = want.contains(all.get(i)) ? col : 0x40000000 | (col & 0xFFFFFF);
+			CsUi.iconIn(g, all.get(i), b[0] + b[2] * 0.1f + i * w, b[1] + 8 * k(), w, b[3] - 8 * k(), 0.4f, c);
+		}
+	}
+
+	/** What this item costs you now (Kevlar + Helmet with full kevlar: just the helmet, like CS2; grenades: wartime, the kit). */
 	private int price(String item) {
+		if (minecraft.player != null && (item.equals(dev.countercraft.team.Buying.NADE_KIT)
+				|| dev.countercraft.CounterCraft.GRENADES.containsKey(Loadouts.modId(item)))) {
+			return dev.countercraft.team.Buying.price(minecraft.player, item);
+		}
 		String ammoSlot = dev.countercraft.team.ExtraAmmo.slotOf(item);
 		if (ammoSlot != null && minecraft.player != null) {
 			int p = dev.countercraft.team.ExtraAmmo.price(minecraft.player, ammoSlot);
@@ -360,6 +402,9 @@ public final class BuyMenuScreen extends Screen {
 	/** Already carried: a weapon or grenade in your CS slots (grenades: as many as CS2 lets you carry). */
 	private boolean owned(String item) {
 		var p = minecraft.player;
+		if (p != null && item.equals(dev.countercraft.team.Buying.NADE_KIT)) {
+			return dev.countercraft.team.Buying.kit(p).isEmpty();
+		}
 		if (p == null || !item.startsWith("weapon_")) {
 			return false;
 		}

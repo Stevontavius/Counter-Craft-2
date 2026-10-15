@@ -204,5 +204,9 @@
   "block.countercraft.white_concrete_surf_ramp": "White Concrete Surf Ramp",
   "block.countercraft.white_wool_surf_ramp": "White Wool Surf Ramp",
   "block.countercraft.yellow_concrete_surf_ramp": "Yellow Concrete Surf Ramp",
-  "block.countercraft.yellow_wool_surf_ramp": "Yellow Wool Surf Ramp"
+  "block.countercraft.yellow_wool_surf_ramp": "Yellow Wool Surf Ramp",
+  "item.countercraft.c4": "C4 Explosive",
+  "entity.countercraft.planted_c4": "Planted C4",
+  "death.attack.countercraft.c4": "%1$s was blown up by the bomb",
+  "death.attack.countercraft.c4.player": "%1$s was blown up by %2$s's bomb"
 }

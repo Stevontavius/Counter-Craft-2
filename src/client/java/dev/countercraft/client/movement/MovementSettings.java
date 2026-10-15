@@ -22,13 +22,10 @@ import net.minecraft.network.chat.Component;
 
 /**
  * Movement options as CS2-style console variables (client commands, saved to config/countercraft-movement.properties):
- * {@code cs_movement} (CS2 movement on/off, default 1), {@code sv_autobunnyhopping} (hold jump to keep hopping,
- * default 0, as CS2) and {@code sv_enablebunnyhopping} (let a jump carry more than 1.1x max speed, default 0, as CS2).
+ * {@code cs_movement} (CS2 movement on/off, default 1). The bunny hop cvars are the server's (ServerCvars), as in CS2.
  */
 public final class MovementSettings {
 	public static boolean enabled = true;
-	public static boolean autoBhop = false;
-	public static boolean enableBhop = false;
 	/** Which CS2 movement keys stop you at a block edge, as sneaking does in Minecraft. */
 	public static EdgeGuard edgeGuard = EdgeGuard.BOTH;
 
@@ -64,8 +61,6 @@ public final class MovementSettings {
 			try (Reader r = Files.newBufferedReader(f)) {
 				p.load(r);
 				enabled = !"0".equals(p.getProperty("cs_movement", "1"));
-				autoBhop = "1".equals(p.getProperty("sv_autobunnyhopping", "0"));
-				enableBhop = "1".equals(p.getProperty("sv_enablebunnyhopping", "0"));
 				try {
 					edgeGuard = EdgeGuard.valueOf(p.getProperty("edge_guard", "BOTH"));
 				} catch (IllegalArgumentException e) {
@@ -82,8 +77,6 @@ public final class MovementSettings {
 		Path f = file();
 		Properties p = new Properties();
 		p.setProperty("cs_movement", enabled ? "1" : "0");
-		p.setProperty("sv_autobunnyhopping", autoBhop ? "1" : "0");
-		p.setProperty("sv_enablebunnyhopping", enableBhop ? "1" : "0");
 		p.setProperty("edge_guard", edgeGuard.name());
 		try {
 			Files.createDirectories(f.getParent());
@@ -103,12 +96,11 @@ public final class MovementSettings {
 		}
 	}
 
+	/** The toggle key: asks the server (operators only, as in CS2). */
 	public static void toggleAutoBhop() {
-		autoBhop = !autoBhop;
-		save();
-		Minecraft mc = Minecraft.getInstance();
-		if (mc.player != null) {
-			mc.player.sendOverlayMessage(Component.literal("sv_autobunnyhopping " + (autoBhop ? 1 : 0)));
+		var connection = Minecraft.getInstance().getConnection();
+		if (connection != null) {
+			connection.sendCommand("sv_autobunnyhopping " + (CsMove.autoBhop ? 0 : 1));
 		}
 	}
 
@@ -117,8 +109,6 @@ public final class MovementSettings {
 			enabled = v;
 			sync();
 		});
-		cvar(d, "sv_autobunnyhopping", () -> autoBhop, v -> autoBhop = v);
-		cvar(d, "sv_enablebunnyhopping", () -> enableBhop, v -> enableBhop = v);
 		cvar(d, "cs_movement_debug", () -> CsPlayerMovement.debug, v -> CsPlayerMovement.debug = v);
 	}
 

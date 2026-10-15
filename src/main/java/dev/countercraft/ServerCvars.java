@@ -32,10 +32,16 @@ import net.minecraft.world.level.storage.LevelResource;
  * <li>{@code sv_maxvelocity}: the speed cap of players and grenades (units/s, CS2 default 3500, up to 10000).</li>
  * <li>{@code sv_airaccelerate}: air control, CS2's 12 by default, up to 2000 (surf servers run 100 and more).</li>
  * <li>{@code sv_staminamax}, {@code sv_staminajumpcost}, {@code sv_staminalandcost}: CS2's stamina, the weaker jump
- * right after a jump or a landing (CS2 defaults 80, 0.08, 0.05; costs of 0 turn it off, as bhop servers do; see
+ * right after a jump or a landing and the slow-down on landing (CS2 defaults 80, 0.08, 0.05; costs of 0 turn it off, as bhop servers do; see
  * {@link dev.countercraft.movement.CsMove#stamina}).</li>
+ * <li>{@code sv_autobunnyhopping} / {@code sv_enablebunnyhopping}: CS2's bunny hop cvars (0 / 0 as CS2): holding jump keeps
+ * hopping; a jump may carry more than 1.1x max speed. The server's, not each player's, so nobody lifts the cap alone.</li>
  * <li>{@code mp_teamkill_ban} / {@code mp_teamdamage_ban}: Counter-Craft's permanent server ban after 5 team kills / 500
  * team damage (0: off; {@link dev.countercraft.team.FriendlyFire}).</li>
+ * <li>{@code sv_grenade_mob_damage} / {@code sv_inferno_mob_damage}: Counter-Craft's grenade damage against mobs, x CS2's
+ * (2.5 / 1.5; players always take CS2's own).</li>
+ * <li>{@code sv_teamflash}: how hard a teammate's flashbang flashes you, 0-1 (0.5; 1 as CS2). Your own always fully.</li>
+ * <li>{@code sv_wartime_discount}: % off grenades while a raid is on where you stand (25; 0 off).</li>
  * </ul>
  * Every cvar also takes {@code reset} (back to its CS2 default). Most take whole numbers; the stamina ones decimals too.
  * {@code /bypass_limits true} lifts the maximum of the movement cvars (sv_maxvelocity, sv_airaccelerate, the stamina ones;
@@ -66,8 +72,15 @@ public final class ServerCvars {
 		movement("sv_staminamax", 80, 0, 100, true);
 		movement("sv_staminajumpcost", 0.08, 0, 1, true);
 		movement("sv_staminalandcost", 0.05, 0, 1, true);
+		add("sv_autobunnyhopping", 0, 0, 1); // holding jump keeps hopping, each hop on the landing itself
+		add("sv_enablebunnyhopping", 0, 0, 1); // a jump may carry more than 1.1x max speed (air strafing builds up)
 		add("mp_teamkill_ban", 5, 0, 1000); // Counter-Craft's: team kills that ban a player from a server for good (0: off)
 		add("mp_teamdamage_ban", 500, 0, 100000); // team damage (CS2 health) that does (0: off); see FriendlyFire
+		// Counter-Craft's (CS2 has no mobs): grenades against mobs, team flashes, wartime prices
+		decimal("sv_grenade_mob_damage", 2.5, 0, 10); // HE damage to mobs, x CS2's (players always take CS2's)
+		decimal("sv_inferno_mob_damage", 1.5, 0, 10); // molotov / incendiary fire damage to mobs, x CS2's
+		decimal("sv_teamflash", 0.5, 0, 1); // how hard a teammate's flashbang flashes you (1: as CS2; your own: always 1)
+		add("sv_wartime_discount", 25, 0, 100); // % off grenades while a raid is on where you stand (0: off)
 	}
 
 	/** Mirrors of the values the hot paths read. */
@@ -88,6 +101,10 @@ public final class ServerCvars {
 
 	private static void add(String name, int dflt, int min, int max) {
 		CVARS.put(name, new Cvar(name, dflt, min, max, false, false));
+	}
+
+	private static void decimal(String name, double dflt, double min, double max) {
+		CVARS.put(name, new Cvar(name, dflt, min, max, true, false));
 	}
 
 	private static void movement(String name, double dflt, double min, double max, boolean decimal) {
@@ -121,6 +138,8 @@ public final class ServerCvars {
 		dev.countercraft.movement.CsMove.maxVelocity = get("sv_maxvelocity");
 		dev.countercraft.movement.CsMove.airAccelerate = get("sv_airaccelerate");
 		dev.countercraft.movement.CsMove.stamina(value("sv_staminamax"), value("sv_staminajumpcost"), value("sv_staminalandcost"));
+		dev.countercraft.movement.CsMove.autoBhop = get("sv_autobunnyhopping") != 0;
+		dev.countercraft.movement.CsMove.enableBhop = get("sv_enablebunnyhopping") != 0;
 	}
 
 	/** World loaded: its cvars (CS2 defaults for a new world). */
@@ -179,7 +198,8 @@ public final class ServerCvars {
 	public static void send(ServerPlayer player) {
 		if (ServerPlayNetworking.canSend(player, CvarsPayload.TYPE)) {
 			ServerPlayNetworking.send(player, new CvarsPayload(infiniteAmmo, get("sv_maxvelocity"), get("sv_airaccelerate"),
-					(float) value("sv_staminamax"), (float) value("sv_staminajumpcost"), (float) value("sv_staminalandcost")));
+					(float) value("sv_staminamax"), (float) value("sv_staminajumpcost"), (float) value("sv_staminalandcost"),
+					get("sv_autobunnyhopping") != 0, get("sv_enablebunnyhopping") != 0));
 		}
 	}
 

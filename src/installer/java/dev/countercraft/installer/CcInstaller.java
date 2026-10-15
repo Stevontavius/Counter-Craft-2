@@ -46,7 +46,7 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 
 /**
- * Counter-Craft 2's installer (BETA 1.2.3): builds the asset pack from the player's own Counter-Strike 2 install (and
+ * Counter-Craft 2's installer (BETA 1.3): builds the asset pack from the player's own Counter-Strike 2 install (and
  * CS:GO's, for its weapon sounds) with the converter (converter/build_pack.py), or updates one by its manifest, then
  * installs the mod and the pack into one launcher's Counter-Craft 2 profile or instance (Install) and checks the result.
  * Pages: Welcome, Notices (agreed to before going on), Counter-Strike, Destination, Review, Progress, Finish; in the look
@@ -139,8 +139,10 @@ public final class CcInstaller extends JComponent {
 			// 18 Damascus knives, 91 s)
 			Map.entry("Weapon finishes (changed only)", 120),
 			// BETA 1.2.3's weapon table patch: the reload / silencer clips' events read straight from the VPK (measured: 15 s)
-			Map.entry("Weapon table (changed only)", 20));
-	private static final String[] BUILD_STEPS = {"CS2 weapon data", "Cosmetics catalog", "Weapons, sounds, HUD", "Weapon table", "Agents",
+			Map.entry("Weapon table (changed only)", 20),
+			// BETA 1.3's extras (the C4's model, clips and sounds, the announcer; measured: 24 s)
+			Map.entry("Extra sounds", 25));
+	private static final String[] BUILD_STEPS = {"CS2 weapon data", "Cosmetics catalog", "Weapons, sounds, HUD", "Weapon table", "Extra sounds", "Agents",
 			"Ragdolls", "Agent eyes", "Death cam", "Map art", "Legacy weapon models", "Weapon finishes", "Glove finishes", "Music kits",
 			"Shading maps"};
 	/** Copying the pack, GB a minute (~: not measured yet). */

@@ -34,7 +34,7 @@ public final class CsSlotPanel {
 		g.fill(x0 + 3, y0 + h - 3, x0 + w - 1, y0 + h - 1, 0xFF555555);
 		g.fill(x0 + w - 3, y0 + 3, x0 + w - 1, y0 + h - 1, 0xFF555555);
 		CsInventory.Data d = CsInventory.of(mc.player);
-		for (int i = 0; i < CsInventory.SIZE; i++) {
+		for (int i = 0; i < CsInventory.MENU_SLOTS; i++) {
 			if (i == CsInventory.KNIFE) {
 				continue; // hidden: the knife only changes in the loadout
 			}

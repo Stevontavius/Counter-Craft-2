@@ -47,7 +47,8 @@ public final class CsDrop {
 
 	/** Can this stack be dropped the CS way (a CS weapon that isn't the knife). */
 	public static boolean isCsItem(ItemStack s) {
-		return s.getItem() instanceof GunItem || s.getItem() instanceof GrenadeItem || s.getItem() instanceof KnifeItem;
+		return s.getItem() instanceof GunItem || s.getItem() instanceof GrenadeItem || s.getItem() instanceof KnifeItem
+				|| s.getItem() instanceof dev.countercraft.gun.C4Item;
 	}
 
 	/** The stack as it lies on the ground: no reload, scope or burst state carried over (CS2 cancels them on drop). */

@@ -40,8 +40,6 @@ public final class Spectate {
 			new KeyMapping("key.countercraft.spectate_xray", InputConstants.Type.KEYBOARD, InputConstants.KEY_X, CATEGORY));
 	public static final KeyMapping CURSOR = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping("key.countercraft.spectate_cursor", InputConstants.Type.KEYBOARD, InputConstants.KEY_N, CATEGORY));
-	/** csgostyles negativeColor, as the death screen's GAME OVER. */
-	private static final int NEGATIVE = 0xFFDB4437;
 	private static final double GAME_OVER_SECONDS = 9;
 	/** The third person camera's distance from the watched player's eyes (blocks). */
 	private static final double ORBIT = 3.5;
@@ -215,8 +213,8 @@ public final class Spectate {
 		if (gameOverAt >= 0) {
 			double t = (System.nanoTime() - gameOverAt) / 1e9;
 			if (t < GAME_OVER_SECONDS) {
-				dev.countercraft.client.hud.WinPanel.draw(g, w, h, t, "GAME OVER", "Your team survived " + gameOverDays + (gameOverDays == 1 ? " day" : " days"), NEGATIVE,
-						0xE0200202, (float) Math.min(1, (GAME_OVER_SECONDS - t) / 0.5));
+				dev.countercraft.client.hud.WinPanel.gameOver(g, w, h, t, "Your team survived " + gameOverDays + (gameOverDays == 1 ? " day" : " days"),
+						(float) Math.min(1, (GAME_OVER_SECONDS - t) / 0.5));
 			} else {
 				gameOverAt = -1;
 			}

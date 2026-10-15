@@ -49,7 +49,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 VRF = ROOT / "tools" / "vrf" / "Source2Viewer-CLI.exe"
 PACK = "CounterCraft-CS2-Assets"
-RELEASE = "BETA 1.2.3"
+RELEASE = "BETA 1.3"
 OPTIONAL = ("skins", "gloves", "musickits")
 MANIFEST = "cc2-manifest.json"
 MANIFEST_FORMAT = 1
@@ -62,6 +62,9 @@ STEPS = {
     # the mod's weapons.json, made here so none of Valve's data ships with the mod. 2: reload / silencer timing from the
     # clips' events (weapons.CHANGED: an update patches the pack's table)
     "weapontable": ("Weapon table", 2, False),
+    # what's added after a release's main steps, small enough to rerun in place: the C4 (model, clips, sounds), the
+    # announcer's bomb lines. 2: the C4's model and clips; 3: its skeleton for agents' hands
+    "extras": ("Extra sounds", 3, False),
     "agents": ("Agents", 1, False),
     "ragdoll": ("Ragdolls", 1, False),
     "eyes": ("Agent eyes", 1, False),
@@ -94,6 +97,7 @@ def plan(args):
         ("cosmetics", [str(HERE / "cosmetics.py"), *cs2, "--step", *exports]),
         ("base", conv),
         ("weapontable", [str(HERE / "weapons.py"), *cs2, "--out", str(args.out / PACK / "assets" / "countercraft" / "weapons.json")]),
+        ("extras", conv + ["--step", "extras"]),
     ]
     for step in ("agents", "ragdoll", "eyes", "deathcam", "maps"):
         steps.append((step, conv + ["--step", step]))
@@ -204,7 +208,7 @@ def write_manifest(pack, args, owners, old=None):
 # Steps an update can rerun on their own, in place on the pack, with the steps that remake what they read first (a build
 # deletes its extraction). A change to any other step (base wipes the pack; the rest read the whole cosmetics export)
 # builds the pack again in full. The finishes step bakes only the finishes its new version changed (skins.CHANGED).
-PARTIAL = {"weapondata": (), "weapontable": ("weapondata",), "skins": ("weapondata",)}
+PARTIAL = {"weapondata": (), "weapontable": ("weapondata",), "skins": ("weapondata",), "extras": ("weapondata",)}
 
 
 def to_rerun(old, args):

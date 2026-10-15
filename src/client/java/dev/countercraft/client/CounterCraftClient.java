@@ -40,6 +40,7 @@ public class CounterCraftClient implements ClientModInitializer {
 		GunHud.register();
 		EntityRendererRegistry.register(CounterCraft.GRENADE_ENTITY, GrenadeRenderer::new);
 		EntityRendererRegistry.register(CounterCraft.DROPPED_WEAPON, DroppedWeaponRenderer::new);
+		EntityRendererRegistry.register(CounterCraft.PLANTED_C4, PlantedC4Renderer::new);
 		ClientTickEvents.START_CLIENT_TICK.register(DropClient::startTick);
 		ClientTickEvents.END_CLIENT_TICK.register(MobHeadsClient::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(HitboxDebug::tick);
@@ -76,10 +77,14 @@ public class CounterCraftClient implements ClientModInitializer {
 			}
 		});
 		LevelRenderEvents.COLLECT_SUBMITS.register(HitboxDebug::submit);
+		LevelRenderEvents.COLLECT_SUBMITS.register(BlastDebug::submit);
 		LevelRenderEvents.COLLECT_SUBMITS.register(GrenadeTracer::submit);
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> MobHeadsClient.markDirty());
-		ClientPlayNetworking.registerGlobalReceiver(FlashPayload.TYPE, (payload, context) -> GunHud.flash(payload.seconds()));
+		ClientPlayNetworking.registerGlobalReceiver(FlashPayload.TYPE, (payload, context) -> GunHud.flash(payload.seconds(), payload.strength()));
 		LevelRenderEvents.COLLECT_SUBMITS.register(dev.countercraft.client.fx.MiniLightning::submit);
+		dev.countercraft.client.fx.ShockLayer.register();
+		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.ShockPayload.TYPE,
+				(payload, context) -> dev.countercraft.client.fx.MiniLightning.shocked(payload.ids()));
 		ClientPlayNetworking.registerGlobalReceiver(ShotFxPayload.TYPE, (payload, context) -> {
 			ShotEffects.onShot(payload);
 			if (context.player() != null && payload.shooter() != context.player().getId()) {
@@ -97,6 +102,8 @@ public class CounterCraftClient implements ClientModInitializer {
 			dev.countercraft.movement.CsMove.maxVelocity = payload.maxVelocity();
 			dev.countercraft.movement.CsMove.airAccelerate = payload.airAccelerate();
 			dev.countercraft.movement.CsMove.stamina(payload.staminaMax(), payload.staminaJumpCost(), payload.staminaLandCost());
+			dev.countercraft.movement.CsMove.autoBhop = payload.autoBhop();
+			dev.countercraft.movement.CsMove.enableBhop = payload.enableBhop();
 		});
 		ClientPlayNetworking.registerGlobalReceiver(RadioFxPayload.TYPE, (payload, context) -> RadioClient.onRadio(payload));
 		ClientPlayNetworking.registerGlobalReceiver(PingPayload.TYPE, (payload, context) -> Pings.onPing(payload));
@@ -105,6 +112,13 @@ public class CounterCraftClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(c -> dev.countercraft.client.fx.MuzzleLight.tickFires()); // burning molotovs light up
 		HudElementRegistry.addLast(CounterCraft.id("radio_wheel"), (g, delta) -> RadioWheel.render(g));
 		HudElementRegistry.addLast(CounterCraft.id("round_banner"), (g, delta) -> dev.countercraft.client.hud.RoundCycle.renderBanner(g));
+		dev.countercraft.client.hud.BannerDemo.register();
+		HudElementRegistry.addLast(CounterCraft.id("bomb"), (g, delta) -> dev.countercraft.client.hud.BombHud.draw(g));
+		HudElementRegistry.addLast(CounterCraft.id("blast_debug"), (g, delta) -> BlastDebug.draw(g));
+		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(dev.countercraft.client.hud.BombHud::tick);
+		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.START_CLIENT_TICK.register(dev.countercraft.client.hud.BombHud::startTick);
+		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.C4Payload.TYPE,
+				(payload, context) -> dev.countercraft.client.hud.BombHud.on(payload));
 		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.RunStatsPayload.TYPE,
 				(payload, context) -> dev.countercraft.client.steam.RunHistory.onStats(context.client(), payload));
 		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.SteamStatusPayload.TYPE,

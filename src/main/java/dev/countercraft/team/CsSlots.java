@@ -13,7 +13,7 @@ public final class CsSlots {
 	public static final int X = -22;
 	public static final int Y = 8;
 	/** Rows shown: the knife slot is hidden from the inventory screen (it's set by the loadout only). */
-	public static final int ROWS = CsInventory.SIZE - 1;
+	public static final int ROWS = CsInventory.MENU_SLOTS - 1;
 
 	/** Screen row of CS slot {@code i} with the knife hidden (the knife itself: row 0, inactive). */
 	public static int row(int i) {

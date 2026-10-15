@@ -5,6 +5,8 @@
     "countercraft:grenade",
     "countercraft:fire",
     "countercraft:taser",
-    "countercraft:shock"
+    "countercraft:shock",
+    "countercraft:zeus_kill",
+    "countercraft:c4_blast"
   ]
 }

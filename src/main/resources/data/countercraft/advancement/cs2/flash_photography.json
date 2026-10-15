@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/blind_luck",
+ "display": {
+  "icon": {
+   "id": "countercraft:flashbang"
+  },
+  "title": {
+   "text": "Flash Photography"
+  },
+  "description": {
+   "text": "Flash 5 hostile mobs simultaneously"
+  },
+  "frame": "task",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

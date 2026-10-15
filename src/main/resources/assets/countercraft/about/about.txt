@@ -1,4 +1,4 @@
-# COUNTER-CRAFT 2 — BETA 1.2.3
+# COUNTER-CRAFT 2 — BETA 1.3
 A free, fan-made Minecraft mod that brings Counter-Strike 2's weapons, movement and style into survival Minecraft.
 Made by Steven. The mod's own code is released under the PolyForm Noncommercial License 1.0.0 (polyformproject.org/licenses/noncommercial/1.0.0): free for any noncommercial use, not for commercial use. It comes "as is", without warranty of any kind.
 

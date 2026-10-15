@@ -79,6 +79,8 @@ public final class GunHud {
 			vanilla.extractRenderState(g, delta);
 		});
 		HudElementRegistry.addLast(CounterCraft.id("ammo"), (g, delta) -> ammo(g));
+		HudElementRegistry.addLast(CounterCraft.id("zeus_water"), (g, delta) -> zeusWater(g));
+		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(GunHud::zeusWaterTick);
 		HudElementRegistry.addLast(CounterCraft.id("flash"), (g, delta) -> {
 			float a = flashAlpha();
 			if (a > 0.004f) {
@@ -133,14 +135,71 @@ public final class GunHud {
 		}
 	}
 
+	/** The warning, between the warning triangles of the GPU Player Rendering warning (bold ⚠). */
+	private static final net.minecraft.network.chat.Component ZEUS_WATER = net.minecraft.network.chat.Component.empty()
+			.append(net.minecraft.network.chat.Component.literal("⚠").withStyle(net.minecraft.ChatFormatting.BOLD))
+			.append("  WARNING: YOU ARE IN A BODY OF WATER WITH A ZEUS EQUIPPED  ")
+			.append(net.minecraft.network.chat.Component.literal("⚠").withStyle(net.minecraft.ChatFormatting.BOLD));
+	/** The warning's flash: on 0.45 s, off 0.25 s; an alarm beep as each flash comes on. */
+	private static final long ZEUS_CYCLE_MS = 700;
+	private static final long ZEUS_ON_MS = 450;
+	/** When the warning came on (-1: it's off), and the beeps played since. */
+	private static long zeusSince = -1;
+	private static long zeusBeeps;
+
+	/**
+	 * Holding the Zeus while in water: one shot shocks the water around (WaterShock), you with it, and the Zeus always
+	 * kills a player. Each client tick: the warning on or off, and its alarm, a two-tone beep with each flash (it plays
+	 * even with the HUD hidden).
+	 */
+	static void zeusWaterTick(Minecraft mc) {
+		GunSpec spec = mc.player == null || !mc.player.isInWater() ? null : GunClient.held(mc.player);
+		if (spec == null || !spec.taser()) {
+			zeusSince = -1;
+			return;
+		}
+		long now = System.currentTimeMillis();
+		if (zeusSince < 0) {
+			zeusSince = now;
+			zeusBeeps = 0;
+		}
+		long cycle = (now - zeusSince) / ZEUS_CYCLE_MS;
+		if (cycle >= zeusBeeps) {
+			mc.getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
+					net.minecraft.sounds.SoundEvents.NOTE_BLOCK_BIT.value(), cycle % 2 == 0 ? 1.8f : 1.35f, 0.8f));
+			zeusBeeps = cycle + 1;
+		}
+	}
+
+	/** The warning: flashing red text across the top of the screen. */
+	private static void zeusWater(GuiGraphicsExtractor g) {
+		if (zeusSince < 0 || (System.currentTimeMillis() - zeusSince) % ZEUS_CYCLE_MS >= ZEUS_ON_MS) {
+			return;
+		}
+		Font font = Minecraft.getInstance().font;
+		int w = font.width(ZEUS_WATER);
+		float k = Math.min(1.5f, (g.guiWidth() - 16f) / w);
+		var pose = g.pose();
+		pose.pushMatrix();
+		pose.translate((g.guiWidth() - w * k) / 2f, g.guiHeight() / 4f);
+		pose.scale(k, k);
+		g.text(font, ZEUS_WATER, 0, 0, 0xFFFF2A2A, true);
+		pose.popMatrix();
+	}
+
 	private static long flashStart;
 	private static float flashSeconds;
+	private static float flashPeak = 1f;
 
-	/** Flashed: full white for the first 45%, then a linear fade (stronger flashes hold longer). */
-	static void flash(float seconds) {
-		if (seconds > remainingFlash()) {
+	/**
+	 * Flashed: white for the first 45%, then a linear fade (stronger flashes hold longer). {@code strength}: the peak
+	 * whiteness (a teammate's flash in co-op is weaker).
+	 */
+	static void flash(float seconds, float strength) {
+		if (seconds * strength > remainingFlash() * flashPeak) {
 			flashStart = System.nanoTime();
 			flashSeconds = seconds;
+			flashPeak = strength;
 		}
 	}
 
@@ -157,7 +216,7 @@ public final class GunHud {
 		if (t >= flashSeconds) {
 			return 0f;
 		}
-		return t <= hold ? 1f : 1f - (t - hold) / (flashSeconds - hold);
+		return flashPeak * (t <= hold ? 1f : 1f - (t - hold) / (flashSeconds - hold));
 	}
 
 	private static final net.minecraft.resources.Identifier SCOPE_CIRCLE = CounterCraft.id("textures/hud/scope_circle.png");

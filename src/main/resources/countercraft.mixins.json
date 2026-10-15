@@ -7,6 +7,7 @@
 		"CombatTrackerMixin",
 		"ServerPlayerDropMixin", "InventoryMenuMixin", "PlayerFallMixin", "HardcorePvpMixin",
 		"ConnectionAccessor", "BotKeepAliveMixin", "NoKnockbackMixin",
-		"BotJoinMessageMixin", "BotLeaveMessageMixin", "ChatNameMixin", "GenuineNameMixin", "SlotMixin", "ContainerMenuMixin", "PlayerAdvancementsMixin", "CreeperAccessor", "SpectateLockMixin", "DedicatedServerGuiMixin", "MobSpawnerMixin"],
+		"BotJoinMessageMixin", "BotLeaveMessageMixin", "ChatNameMixin", "GenuineNameMixin", "SlotMixin", "ContainerMenuMixin", "PlayerAdvancementsMixin", "CreeperAccessor", "SpectateLockMixin", "DedicatedServerGuiMixin", "MobSpawnerMixin",
+		"FirePathMixin", "FireSpawnMixin", "SmokeyHiveMixin", "SlimeSplitMixin", "EndermanBlindMixin", "WitherBlindMixin", "BlindDamageMixin", "PetTeammateMixin"],
 	"injectors": { "defaultRequire": 1 }
 }

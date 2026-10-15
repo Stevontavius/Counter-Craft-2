@@ -42,6 +42,17 @@ public final class FriendlyFire {
 	private FriendlyFire() {
 	}
 
+	/**
+	 * Hardcore: every player is a teammate, so a player's pet never goes for a player (its owner's teammate), nor for
+	 * another player's pet (PetTeammateMixin turns such a target into none). Wild animals and hostile mobs are unchanged.
+	 */
+	public static boolean petSpares(net.minecraft.world.entity.Mob pet, net.minecraft.world.entity.LivingEntity target) {
+		return target != null && pet.level().getLevelData().isHardcore()
+				&& pet instanceof net.minecraft.world.entity.OwnableEntity own && own.getOwnerReference() != null
+				&& (target instanceof net.minecraft.world.entity.player.Player
+						|| target instanceof net.minecraft.world.entity.OwnableEntity other && other.getOwnerReference() != null);
+	}
+
 	public static void init() {
 		ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, base, taken, blocked) -> {
 			if (entity instanceof ServerPlayer victim && source.getEntity() instanceof ServerPlayer attacker && attacker != victim && taken > 0f) {

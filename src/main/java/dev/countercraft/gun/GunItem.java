@@ -319,6 +319,7 @@ public class GunItem extends Item implements CsWeapon {
 			reserve = got;
 			stack.set(ModComponents.RESERVE, reserve);
 		}
+		dev.countercraft.Achievements.reloaded(player); // (a reload really starts: Ace! breaks)
 		long now = level.getGameTime();
 		GunSpec.ShellReload shells = spec.shellReload();
 		if (spec.singleShellReload() && shells != null) {

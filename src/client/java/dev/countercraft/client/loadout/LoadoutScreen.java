@@ -284,7 +284,7 @@ public final class LoadoutScreen extends Screen {
 		CsUi.text(g, title, col[0] + col[1] / 2, top + 4 * k, CsUi.fitSize(title, col[1], 14, uiH()), uiH(), 0x80000000 | 0xFFFFFF, 0);
 		List<String> mine = new ArrayList<>();
 		for (Loadouts.Fixed f : items) {
-			if (f.teams().contains(t)) {
+			if (f.teams().contains(t) && !f.item().equals("item_defuser")) { // a C4 test item, not a loadout
 				mine.add(f.item());
 			}
 		}

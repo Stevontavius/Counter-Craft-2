@@ -27,14 +27,14 @@ abstract class InventoryMenuMixin extends AbstractCraftingMenu {
 	@Inject(method = "<init>", at = @At("RETURN"))
 	private void countercraft$csSlots(final Inventory inventory, final boolean active, final Player owner, final CallbackInfo ci) {
 		CsSlots.Inv inv = new CsSlots.Inv(owner);
-		for (int i = 0; i < CsInventory.SIZE; i++) {
+		for (int i = 0; i < CsInventory.MENU_SLOTS; i++) {
 			addSlot(new CsSlots.CsSlot(inv, i, CsSlots.X, CsSlots.Y + CsSlots.row(i) * 18));
 		}
 	}
 
 	@Inject(method = "quickMoveStack", at = @At("HEAD"), cancellable = true)
 	private void countercraft$csQuickMove(final Player player, final int index, final CallbackInfoReturnable<ItemStack> cir) {
-		int csEnd = CsSlots.MENU_START + CsInventory.SIZE;
+		int csEnd = CsSlots.MENU_START + CsInventory.MENU_SLOTS;
 		Slot slot = slots.get(index);
 		if (!slot.hasItem()) {
 			return;

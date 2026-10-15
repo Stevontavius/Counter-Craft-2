@@ -36,7 +36,8 @@ public final class MobVision {
 	public static final double DECOY_HEARING = 40;
 	private static final int DECOY_INVESTIGATE_TICKS = 200;
 
-	private record Search(Vec3 lastSeen, long until) {
+	/** {@code who}: the player the smoke hid (null: a decoy's lure). */
+	private record Search(Vec3 lastSeen, long until, UUID who) {
 	}
 
 	private static final Map<UUID, Search> SEARCH = new ConcurrentHashMap<>();
@@ -68,7 +69,7 @@ public final class MobVision {
 		}
 		CHECKING.set(true);
 		try {
-			return !blinded(m) && !smokeBlocks(m, target);
+			return !blinded(m) && !stunned(m) && !smokeBlocks(m, target);
 		} finally {
 			CHECKING.set(false);
 		}
@@ -91,15 +92,18 @@ public final class MobVision {
 			// a spot near the decoy, so a crowd doesn't stack on one block
 			var r = m.getRandom();
 			Vec3 look = at.add((r.nextDouble() - 0.5) * 3, 0, (r.nextDouble() - 0.5) * 3);
-			Search old = SEARCH.put(m.getUUID(), new Search(look, until));
+			Search old = SEARCH.put(m.getUUID(), new Search(look, until, null));
 			if (old == null || old.lastSeen().distanceToSqr(at) > 9) {
 				m.getNavigation().moveTo(look.x, look.y, look.z, 1.0);
 			}
 		}
 	}
 
-	/** A flashbang went off: blind this mob for {@code seconds} (not a Warden: it doesn't hunt by sight). */
-	public static void flash(Mob m, float seconds) {
+	/**
+	 * A flashbang thrown by {@code thrower} went off: blind this mob for {@code seconds} (not a Warden: it doesn't hunt by
+	 * sight). A hissing creeper stops its fuse; an enderman drops the block it carries (and can't teleport while blind).
+	 */
+	public static void flash(Mob m, float seconds, Entity thrower) {
 		if (BossArmor.ignoresVisionUtility(m)) {
 			return;
 		}
@@ -108,6 +112,37 @@ public final class MobVision {
 		dropTarget(m);
 		SEARCH.remove(m.getUUID());
 		m.getNavigation().stop();
+		dev.countercraft.team.Assists.flashed(m, thrower, until);
+		if (m instanceof net.minecraft.world.entity.monster.Creeper c && !c.isIgnited()) {
+			if (c.getSwellDir() > 0 && thrower instanceof net.minecraft.server.level.ServerPlayer sp) {
+				Achievements.award(sp, "tactical_retreat"); // it was hissing
+			}
+			c.setSwellDir(-1); // (one lit with flint and steel goes off anyway)
+		}
+		if (m instanceof net.minecraft.world.entity.monster.Enderman e && e.getCarriedBlock() != null && m.level() instanceof ServerLevel level) {
+			e.spawnAtLocation(level, e.getCarriedBlock().getBlock());
+			e.setCarriedBlock(null);
+		}
+	}
+
+	/** Blind mobs take this much more damage (Counter-Craft's rule: grenades pay off against mobs). */
+	public static final float BLIND_DAMAGE = 1.25f;
+
+	private static final Map<UUID, Long> STUN_UNTIL = new ConcurrentHashMap<>();
+
+	/** Dazed by a blast for {@code ticks}: it drops its target and can't pick one until it clears (no blind bonus). */
+	public static void stun(Mob m, int ticks) {
+		if (BossArmor.ignoresVisionUtility(m)) {
+			return;
+		}
+		STUN_UNTIL.merge(m.getUUID(), m.level().getGameTime() + ticks, Math::max);
+		dropTarget(m);
+		m.getNavigation().stop();
+	}
+
+	private static boolean stunned(Mob m) {
+		Long until = STUN_UNTIL.get(m.getUUID());
+		return until != null && m.level().getGameTime() < until;
 	}
 
 	private static void dropTarget(Mob m) {
@@ -126,7 +161,8 @@ public final class MobVision {
 					for (Mob m : level.getEntitiesOfClass(Mob.class, around, x -> x.isAlive() && target(x) != null)) {
 						LivingEntity t = target(m);
 						if (!BossArmor.ignoresVisionUtility(m) && smokeBlocks(m, t)) {
-							SEARCH.put(m.getUUID(), new Search(t.position(), level.getGameTime() + SEARCH_TICKS));
+							SEARCH.put(m.getUUID(), new Search(t.position(), level.getGameTime() + SEARCH_TICKS,
+									t instanceof net.minecraft.server.level.ServerPlayer ? t.getUUID() : null));
 							dropTarget(m);
 							m.getNavigation().moveTo(t.getX(), t.getY(), t.getZ(), 1.0);
 						}
@@ -140,6 +176,11 @@ public final class MobVision {
 			Map.Entry<UUID, Search> en = it.next();
 			Mob m = find(server, en.getKey());
 			if (m == null || target(m) != null || now > en.getValue().until()) {
+				// the search ran out without finding them: a hostile mob lost its pursuit in the smoke (Smoke Screen)
+				if (m != null && target(m) == null && en.getValue().who() != null && m instanceof net.minecraft.world.entity.monster.Enemy
+						&& server.getPlayerList().getPlayer(en.getValue().who()) instanceof net.minecraft.server.level.ServerPlayer sp) {
+					Achievements.award(sp, "smoke_screen");
+				}
 				it.remove();
 				continue;
 			}
@@ -150,6 +191,7 @@ public final class MobVision {
 				}
 			}
 		}
+		STUN_UNTIL.entrySet().removeIf(en -> now >= en.getValue());
 		// blinded: no target, stumbling about
 		for (Iterator<Map.Entry<UUID, Long>> it = BLIND_UNTIL.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry<UUID, Long> en = it.next();

@@ -170,7 +170,7 @@ public final class RoundCycle {
 		float alpha = (float) Math.min(1.0, (BANNER_SECONDS - t) / BANNER_FADE);
 		boolean ct = Teams.CT.equals(Teams.of(mc.player));
 		int accent = ct ? CsUi.CT_COLOR : CsUi.T_COLOR;
-		int fill = ct ? 0xE0020A1E : 0xE01E1602;
+		int fill = ct ? WinPanel.FILL_CT : WinPanel.FILL_T;
 		WinPanel.draw(g, g.guiWidth(), g.guiHeight(), t, "DAY " + bannerDay + " SURVIVED", "+$" + bannerReward + " for surviving the day", accent, fill, alpha);
 	}
 

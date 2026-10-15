@@ -31,7 +31,7 @@ import net.minecraft.world.item.ItemStack;
  */
 public final class MvpBanners {
 	private record Banner(boolean challenge, String label, String title, String description, ItemStack icon, int accent, String name, String kit,
-			double seconds) {
+			double seconds, String team) {
 	}
 
 	private static final Deque<Banner> QUEUE = new ArrayDeque<>();
@@ -50,15 +50,18 @@ public final class MvpBanners {
 		} catch (RuntimeException e) {
 			icon = ItemStack.EMPTY;
 		}
-		QUEUE.add(new Banner(false, goal ? "GOAL REACHED" : "ADVANCEMENT MADE", d.title().getString(), d.description().getString(), icon,
-				goal ? 0xFFEABE54 : 0xFF7ED37E, "", "", 4.5));
+		personal(goal ? "GOAL REACHED" : "ADVANCEMENT MADE", d.title().getString(), d.description().getString(), icon, goal);
+	}
+
+	static void personal(String label, String title, String description, ItemStack icon, boolean goal) {
+		QUEUE.add(new Banner(false, label, title, description, icon, goal ? 0xFFEABE54 : 0xFF7ED37E, "", "", 4.5, ""));
 	}
 
 	/** Someone completed a challenge (from the server). */
 	public static void challenge(MvpPayload p) {
 		int accent = 0xFF000000 | (Teams.CT.equals(p.team()) ? Teams.CT_COLOR : Teams.T.equals(p.team()) ? Teams.T_COLOR : 0xB06BFF);
 		QUEUE.add(new Banner(true, p.label(), p.title(), p.description(), ItemStack.EMPTY, accent, p.name(),
-				p.kit().isEmpty() ? LoadoutConfig.DEFAULT_MUSIC_KIT : p.kit(), 8.0));
+				p.kit().isEmpty() ? LoadoutConfig.DEFAULT_MUSIC_KIT : p.kit(), 8.0, p.team()));
 	}
 
 	private static void start(Banner b) {
@@ -99,30 +102,19 @@ public final class MvpBanners {
 		}
 	}
 
-	/** CS2's round-end banner: the challenge's name, then "MVP: name" and what they did; the kit underneath. */
+	/**
+	 * CS2's round-end banner in the achiever's team colours: the challenge's name, "CHALLENGE COMPLETE" as its fun fact,
+	 * and CS2's MVP strip under it (their face, what they did as the MVP reason, their name and music kit).
+	 */
 	private static void drawChallenge(GuiGraphicsExtractor g, double t, float alpha) {
 		Banner b = current;
 		int w = g.guiWidth();
 		int h = g.guiHeight();
-		float k = CsUi.k(h);
-		WinPanel.draw(g, w, h, t, b.title().toUpperCase(Locale.ROOT), b.label(), b.accent(), 0xE0101214, alpha);
-		if (t < 0.3) {
-			return;
-		}
-		int a = Math.round(alpha * 255) << 24;
-		float y = 190 * k + 80 * k + 10 * k;
-		String mvp = "MVP: " + b.name();
-		float mw = CsUi.textWidth(mvp, 24, h);
-		float dw = CsUi.textWidth(b.description(), 16, h);
-		String kit = "♪ " + MusicKit.name(b.kit());
-		float kw = CsUi.textWidth(kit, 16, h);
-		float boxW = Math.max(mw, Math.max(Math.min(dw, 560 * k), kw)) + 32 * k;
-		float x0 = w / 2f - boxW / 2;
-		g.fill((int) x0, (int) y, (int) (x0 + boxW), (int) (y + 72 * k), (Math.round(alpha * 0xC0) << 24) | 0x101214);
-		CsUi.text(g, mvp, w / 2f - mw / 2, y + 8 * k, 24, h, a | (b.accent() & 0xFFFFFF), -1);
-		String desc = CsUi.fit(b.description(), 560 * k, 16, h);
-		CsUi.text(g, desc, w / 2f - CsUi.textWidth(desc, 16, h) / 2, y + 34 * k, 16, h, a | 0xBFBFBF, -1);
-		CsUi.text(g, kit, w / 2f - kw / 2, y + 52 * k, 16, h, a | 0xEABE54, -1);
+		int fill = Teams.T.equals(b.team()) || Teams.CT.equals(b.team()) ? WinPanel.fill(b.team()) : 0xD9281440;
+		WinPanel.draw(g, w, h, t, b.title().toUpperCase(Locale.ROOT), b.label(), b.accent(), fill, alpha);
+		var conn = Minecraft.getInstance().getConnection();
+		var info = conn == null ? null : conn.getPlayerInfo(b.name());
+		WinPanel.mvp(g, w, h, t, info == null ? null : info.getSkin(), b.description(), b.name(), MusicKit.name(b.kit()), b.accent(), fill, alpha);
 	}
 
 	/** A compact MVP card for your own advancement: icon, label, title, description. */
@@ -131,7 +123,9 @@ public final class MvpBanners {
 		int w = g.guiWidth();
 		int h = g.guiHeight();
 		float k = CsUi.k(h);
-		float bw = 420 * k;
+		// as wide as its text needs (420 to 640 px), so the description isn't cut
+		float textW = Math.max(CsUi.textWidth(b.title(), 24, h), CsUi.textWidth(b.description(), 14, h));
+		float bw = Math.max(420 * k, Math.min(640 * k, textW + (b.icon().isEmpty() ? 32 : 80) * k));
 		float bh = 64 * k;
 		float slide = (float) Math.min(1.0, t / 0.25);
 		float x0 = w / 2f - bw / 2;

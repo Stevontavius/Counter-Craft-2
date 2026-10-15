@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/save",
+ "display": {
+  "icon": {
+   "id": "minecraft:totem_of_undying"
+  },
+  "title": {
+   "text": "Clutch or Kick"
+  },
+  "description": {
+   "text": "Be the last teammate alive through a night, so everyone comes back at dawn (hardcore)"
+  },
+  "frame": "challenge",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

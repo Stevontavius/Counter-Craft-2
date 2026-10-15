@@ -218,6 +218,15 @@ def load_extra():
     return melee, grenades
 
 
+def c4_entry():
+    """The C4 (the extras step converts it): its viewmodel, clips (draw, idle, plant, inspect), icon and sounds."""
+    return {"id": "c4", "name": "C4 Explosive", "kind": "c4",
+            "_asset": {"model": "weapons/models/c4/weapon_c4.vmdl_c", "skeleton": "c4.vnmskel",
+                       "clipDir": "animation/anims/viewmodel/equipment/c4/",
+                       "icon": "panorama/images/econ/weapons/base_weapons/weapon_c4_png.vtex_c",
+                       "soundEvents": ["c4.initiate", "c4.plant", "c4.keypressquiet"]}}
+
+
 # Guns whose shots are far enough apart that the punch recovers in between: the view kick is replayed from the camera
 # curve measured in CS2 (measure/punch_track.py). MAG-7 / Sawed-Off: their recordings' shot detection failed, so they
 # use the Nova curve scaled by recoil magnitude (camera kick = 0.038 x magnitude on every gun measured cleanly).

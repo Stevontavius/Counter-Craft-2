@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/root",
+ "display": {
+  "icon": {
+   "id": "countercraft:taser"
+  },
+  "title": {
+   "text": "Electrician"
+  },
+  "description": {
+   "text": "Turn a creeper into a charged creeper with the Zeus"
+  },
+  "frame": "task",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

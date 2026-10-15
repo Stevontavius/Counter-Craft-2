@@ -260,6 +260,10 @@ public final class AnotherChance {
 		if (survivors.isEmpty()) {
 			return;
 		}
+		// one made it through the night alone and brings everyone back (Clutch or Kick)
+		if (survivors.size() == 1 && server.getPlayerList().getPlayers().stream().anyMatch(p -> of(p).state() == DOWN)) {
+			dev.countercraft.Achievements.award(survivors.getFirst(), "clutch_or_kick");
+		}
 		for (ServerPlayer p : server.getPlayerList().getPlayers()) {
 			if (of(p).state() == DOWN) {
 				DayCycle.daySurvived(p, day, DEAD_SHARE);

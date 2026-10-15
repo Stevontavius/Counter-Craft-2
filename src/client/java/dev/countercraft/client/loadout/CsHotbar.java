@@ -12,16 +12,16 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * Client side of CS mode ({@link CsInventory}): the toggle key, CS2's slot keys (1 primary, 2 pistol, 3 knife,
- * 4 cycles the grenades, 5 Zeus), lastinv (Q: the weapon held before) and scrolling through the filled slots, and CS2's
+ * 4 cycles the grenades, 5 the C4 (CS2's) and the Zeus), lastinv (Q: the weapon held before) and scrolling through the filled slots, and CS2's
  * weapon list (panorama hudweaponselection) drawn instead of the hotbar: one row per slot at the right edge, the
  * selected weapon's icon bigger and brighter with its name, in the team colour, easing between selections.
  */
 public final class CsHotbar {
-	/** CS2 rows: key 1-5 and the CS slots they hold. */
+	/** CS2 rows: key 1-5 and the CS slots they hold (5: the C4, when its test slot is open, then the Zeus). */
 	private static final int[][] ROWS = {{CsInventory.PRIMARY}, {CsInventory.SECONDARY}, {CsInventory.KNIFE},
-			{CsInventory.GRENADE0, CsInventory.GRENADE0 + 1, CsInventory.GRENADE0 + 2, CsInventory.GRENADE0 + 3}, {CsInventory.ZEUS}};
+			{CsInventory.GRENADE0, CsInventory.GRENADE0 + 1, CsInventory.GRENADE0 + 2, CsInventory.GRENADE0 + 3}, {CsInventory.C4, CsInventory.ZEUS}};
 	/** Scroll order through the CS slots. */
-	private static final int[] ORDER = {0, 1, 2, 3, 4, 5, 6, 7};
+	private static final int[] ORDER = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 	/** The CS slot selected now and the one before it (lastinv), or -1. */
 	private static int current = -1;
 	private static int previous = -1;

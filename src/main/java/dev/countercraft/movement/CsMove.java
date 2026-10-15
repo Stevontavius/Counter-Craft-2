@@ -71,6 +71,29 @@ public final class CsMove {
 	public static double jumpStamina() {
 		return staminaJumpCost * JUMP_IMPULSE;
 	}
+	/**
+	 * CS2 2026 landing slow-down: the same stamina also caps ground speed at (1 - STAMINA_SPEED x stamina / 100) of the max
+	 * speed, so a full jump's landing drops a runner from 250 to ~184 u/s and the cap rises back as the stamina recovers
+	 * (~0.4 s), in the air too (see BHOP_TIME_WINDOW). Fitted on 9 landings (cs2-extract/movement/ticks.csv), rms 1.4
+	 * u/s; the free fit (1 - 0.00094 x fall speed, +1.16/s) lands on exactly 2 x the jump penalty. Falls higher than a jump
+	 * aren't measured (APPROXIMATION: the same rule, down to a stop).
+	 */
+	public static final double STAMINA_SPEED = 2;
+	/**
+	 * A jump pressed at most sv_bhop_time_window (half a tick) after the landing keeps the speed it landed with (CS2's
+	 * stashed speed: jumps 0.16 and 0.22 ticks after landing kept 250 u/s). Any other jump leaves with the landing
+	 * slow-down above (one tick late: 250 -> 190.8 for the whole hop, hold_space). A press before the landing counts
+	 * as late (CS2 held space through a landing: it jumped a tick later, slowed). sv_autobunnyhopping 1 jumps on the
+	 * landing itself, so its hops keep their speed (CS2's auto hop chain: 250, 255, 255, 260; still capped at 1.1x).
+	 * Ours times the press against the landing as drawn, a tick after the movement made it.
+	 */
+	public static final double BHOP_TIME_WINDOW = 0.0078125;
+	/**
+	 * The world's sv_autobunnyhopping / sv_enablebunnyhopping (server: ServerCvars; client: CvarsPayload). CS2's are the
+	 * server's too: a player can't turn the speed cap off for themselves.
+	 */
+	public static volatile boolean autoBhop;
+	public static volatile boolean enableBhop;
 	/** sv_enablebunnyhopping 0: a jump can't carry more than 1.1x max speed. */
 	public static final double BHOP_SPEED_CAP = 1.1;
 

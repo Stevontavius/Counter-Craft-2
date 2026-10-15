@@ -58,6 +58,18 @@ public final class Economy {
 	private static final int HEADSHOT_BONUS = 5;
 	private static final int WALLBANG_BONUS = 10;
 	private static final int BLIND_BONUS = 25;
+	/**
+	 * Grenades against mobs (Counter-Craft's): a grenade kill pays twice the bounty, a raider during a raid half as much
+	 * again; an impact kill (the grenade hit it in flight) and a bank shot (it had bounced off a wall) pay these on top;
+	 * one grenade's second, third... kill pays {@link #MULTI_KILL_STEP} times one less than its count more.
+	 */
+	private static final int GRENADE_MULTIPLIER = 2;
+	private static final float RAID_MULTIPLIER = 1.5f;
+	private static final int IMPACT_BONUS = 100;
+	private static final int BANK_BONUS = 15;
+	private static final int MULTI_KILL_STEP = 10;
+	/** Kills so far by each grenade (entity id -> kills, game time of the last). */
+	private static final java.util.Map<Integer, long[]> GRENADE_KILLS = new java.util.concurrent.ConcurrentHashMap<>();
 	/** A mob from a monster spawner pays a quarter (-75%), bonuses included; an enderman in the End a flat $5. */
 	private static final float SPAWNER_SHARE = 0.25f;
 	private static final int END_ENDERMAN_AWARD = 5;
@@ -161,18 +173,37 @@ public final class Economy {
 	 * bounty plus the bonuses, a quarter of that from a spawner; an enderman in the End pays a flat
 	 * {@link #END_ENDERMAN_AWARD}. 0 for anything that isn't hostile.
 	 */
+	/** A hostile mob's own bounty, before any bonus (0: none; an enderman in the End: the flat rate). */
+	public static int baseBounty(LivingEntity victim) {
+		if (victim.getType() == net.minecraft.world.entity.EntityTypes.ENDERMAN && victim.level().dimension() == net.minecraft.world.level.Level.END) {
+			return END_ENDERMAN_AWARD;
+		}
+		Integer base = MOB_AWARDS.get(victim.getType());
+		return base != null ? base : victim instanceof Enemy ? MOB_AWARD : 0;
+	}
+
+	/** A kill feed weapon id that's a grenade (or its fire). */
+	public static boolean grenade(String weapon) {
+		return switch (weapon == null ? "" : weapon) {
+			case "hegrenade", "inferno", "molotov", "incgrenade", "flashbang", "smokegrenade", "decoy" -> true;
+			default -> false;
+		};
+	}
+
 	static int mobAward(LivingEntity victim, int flags, StringBuilder why) {
+		return mobAward(victim, flags, "", 0, why);
+	}
+
+	/** As above, killed with {@code weapon}; {@code source}: the grenade's entity id (0: none), for its multi-kills. */
+	static int mobAward(LivingEntity victim, int flags, String weapon, int source, StringBuilder why) {
 		String name = victim.getType().getDescription().getString();
 		if (victim.getType() == net.minecraft.world.entity.EntityTypes.ENDERMAN && victim.level().dimension() == net.minecraft.world.level.Level.END) {
 			why.append("for killing an ").append(name).append(" in the End");
 			return END_ENDERMAN_AWARD;
 		}
-		Integer base = MOB_AWARDS.get(victim.getType());
-		if (base == null) {
-			if (!(victim instanceof Enemy)) {
-				return 0;
-			}
-			base = MOB_AWARD;
+		int base = baseBounty(victim);
+		if (base == 0) {
+			return 0;
 		}
 		int award = base;
 		java.util.List<String> extra = new java.util.ArrayList<>();
@@ -192,6 +223,34 @@ public final class Economy {
 			award += BLIND_BONUS;
 			extra.add("blind +$" + BLIND_BONUS);
 		}
+		if (grenade(weapon)) {
+			award *= GRENADE_MULTIPLIER;
+			extra.add("grenade kill x" + GRENADE_MULTIPLIER);
+			if (victim instanceof net.minecraft.world.entity.raid.Raider raider && raider.hasActiveRaid()) {
+				award = Math.round(award * RAID_MULTIPLIER);
+				extra.add("raid +50%");
+			}
+			if ((flags & dev.countercraft.net.KillFeedPayload.F_IMPACT) != 0) {
+				award += IMPACT_BONUS;
+				extra.add("impact kill +$" + IMPACT_BONUS);
+			}
+			if ((flags & dev.countercraft.net.KillFeedPayload.F_BANK) != 0) {
+				award += BANK_BONUS;
+				extra.add("bank shot +$" + BANK_BONUS);
+			}
+			if (source != 0) {
+				long now = victim.level().getGameTime();
+				GRENADE_KILLS.values().removeIf(v -> now - v[1] > 20 * 60); // grenades long gone
+				long[] k = GRENADE_KILLS.computeIfAbsent(source, s -> new long[2]);
+				k[0]++;
+				k[1] = now;
+				if (k[0] > 1) {
+					int bonus = (int) (MULTI_KILL_STEP * (k[0] - 1));
+					award += bonus;
+					extra.add("multi-kill x" + k[0] + " +$" + bonus);
+				}
+			}
+		}
 		boolean spawner = Boolean.TRUE.equals(victim.getAttached(FROM_SPAWNER));
 		if (spawner) {
 			award = Math.round(award * SPAWNER_SHARE);
@@ -206,6 +265,11 @@ public final class Economy {
 
 	/** A player killed something with {@code weapon}: CS2's kill award, or the teammate penalty; a mob's bounty. */
 	public static void onKill(ServerPlayer killer, LivingEntity victim, String weapon, int flags) {
+		onKill(killer, victim, weapon, flags, 0);
+	}
+
+	/** As above; {@code source}: the grenade's entity id if one did it (0: none). */
+	public static void onKill(ServerPlayer killer, LivingEntity victim, String weapon, int flags, int source) {
 		if (killer == victim || freeBuy(killer)) {
 			return;
 		}
@@ -227,7 +291,7 @@ public final class Economy {
 			return; // everyone who fought it is paid (BossFights)
 		} else {
 			StringBuilder w = new StringBuilder();
-			award = mobAward(victim, flags, w);
+			award = mobAward(victim, flags, weapon, source, w);
 			why = w.toString();
 		}
 		if (award == 0) {
@@ -236,6 +300,9 @@ public final class Economy {
 		int before = money(killer);
 		add(killer, award);
 		int got = money(killer) - before;
+		if (!(victim instanceof Player)) {
+			dev.countercraft.Achievements.bounty(killer, award);
+		}
 		if (got != 0) {
 			// CS2's chat line ("+$300: Award for neutralizing an enemy.")
 			killer.sendSystemMessage(Component.literal((got > 0 ? "+$" + got + ": Award " : "-$" + -got + ": Penalty ") + why + ".")

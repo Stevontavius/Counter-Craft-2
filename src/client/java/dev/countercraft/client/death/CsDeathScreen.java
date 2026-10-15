@@ -32,8 +32,6 @@ public final class CsDeathScreen extends Screen {
 	private static final int DESC = 0xFFC93121;
 	private static final int GREY = 0xFFA0A0A0;
 	private static final int LINE = 0x40252525;
-	/** csgostyles negativeColor (the lost round banner's colour). */
-	private static final int NEGATIVE = 0xFFDB4437;
 
 	private final DeathScreen vanilla;
 	private final boolean hardcore;
@@ -208,8 +206,7 @@ public final class CsDeathScreen extends Screen {
 	private void gameOver(GuiGraphicsExtractor g, DeathInfoPayload info) {
 		double t = DeathCam.active() ? DeathCam.seconds() - 0.3 : 10;
 		int days = info == null ? 0 : info.daysSurvived();
-		dev.countercraft.client.hud.WinPanel.draw(g, width, height, t, "GAME OVER", "You survived " + days + (days == 1 ? " day" : " days"), NEGATIVE,
-				0xE0200202);
+		dev.countercraft.client.hud.WinPanel.gameOver(g, width, height, t, "You survived " + days + (days == 1 ? " day" : " days"), 1f);
 	}
 
 	/** CS2's DeathPanel_DamageTaken / _Given (grey label, white numbers). */

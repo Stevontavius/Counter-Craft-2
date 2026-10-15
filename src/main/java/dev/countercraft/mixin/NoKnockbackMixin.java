@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class NoKnockbackMixin {
 	@Inject(method = "dealDefaultKnockback", at = @At("HEAD"), cancellable = true)
 	private void countercraft$noKnockback(final DamageSource source, final float amount, final boolean blocked, final CallbackInfo ci) {
-		if (source.is(CounterCraft.FIRE) || (source.is(CounterCraft.BULLET) || source.is(CounterCraft.TASER))
+		if (source.is(CounterCraft.FIRE) || (source.is(CounterCraft.BULLET) || source.is(CounterCraft.TASER) || source.is(CounterCraft.ZEUS_KILL))
 				&& ((Object) this instanceof Player || (Object) this instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon)) {
 			ci.cancel();
 		}

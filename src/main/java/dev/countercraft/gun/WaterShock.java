@@ -1,10 +1,14 @@
 package dev.countercraft.gun;
 
 import dev.countercraft.CounterCraft;
+import dev.countercraft.net.ShockPayload;
 import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.core.particles.ParticleTypes;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.FluidTags;
@@ -21,11 +25,13 @@ import net.minecraft.world.phys.Vec3;
 /**
  * The Zeus and water (Counter-Craft's own rule; CS2 has no water to shock): a Zeus shot that hits a mob standing or
  * swimming in water, or that reaches water itself, shocks every mob in the water within {@link #RADIUS} blocks with the
- * Zeus's own hit (a creeper gets charged, as by the Zeus). The shooter too, if they're in the water. Other players
- * aren't: on a server that would be team damage.
+ * Zeus's own hit (a creeper gets charged, as by the Zeus). The shooter too, if they're in the water, and that always
+ * kills ({@link Ballistics#zeusKills}). Other players aren't shocked: on a server that would be team damage.
  */
 final class WaterShock {
 	static final double RADIUS = 20;
+	/** Players this close to the shock see its lightning (the shock's radius and a good view past it). */
+	private static final double FX_RANGE = 128;
 
 	private WaterShock() {
 	}
@@ -58,19 +64,18 @@ final class WaterShock {
 			if (done.add(e)) {
 				Vec3 c = e.getBoundingBox().getCenter();
 				Ballistics.hit(level, shooter, spec, at, new Ballistics.EntityHit(e, c, 0, Hitboxes.GENERIC), 1f, false);
-				spark(level, e);
 			}
 		}
-		if (shooter.isInWater() && shooter.isAlive() && shooter.distanceToSqr(at) <= RADIUS * RADIUS) {
-			float cs = dev.countercraft.Combat.afterArmor(shooter, Ballistics.csDamage(spec, 0, Hitboxes.GENERIC), spec.armorRatio(), Hitboxes.GENERIC);
-			shooter.hurtServer(level, new DamageSource(CounterCraft.damageType(level, CounterCraft.SHOCK)), cs * Ballistics.CS_TO_MC);
-			spark(level, shooter);
+		if (shooter.isInWater() && shooter.isAlive() && shooter.distanceToSqr(at) <= RADIUS * RADIUS && Ballistics.zeusKills(shooter)) {
+			done.add(shooter);
+			shooter.hurtServer(level, new DamageSource(CounterCraft.damageType(level, CounterCraft.SHOCK)), Ballistics.lethal(shooter));
 		}
-	}
-
-	private static void spark(ServerLevel level, Entity e) {
-		AABB b = e.getBoundingBox();
-		Vec3 c = b.getCenter();
-		level.sendParticles(ParticleTypes.ELECTRIC_SPARK, c.x, c.y, c.z, 12, b.getXsize() / 2, b.getYsize() / 2, b.getZsize() / 2, 0.2);
+		// everyone who can see it draws the lightning on the shocked creatures' own models (client: ShockLayer)
+		ShockPayload fx = new ShockPayload(done.stream().mapToInt(Entity::getId).toArray());
+		for (ServerPlayer p : PlayerLookup.around(level, at, FX_RANGE)) {
+			if (ServerPlayNetworking.canSend(p, ShockPayload.TYPE)) {
+				ServerPlayNetworking.send(p, fx);
+			}
+		}
 	}
 }

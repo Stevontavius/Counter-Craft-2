@@ -40,7 +40,8 @@ public final class Combat {
 	/** CS2 knives' m_flArmorRatio (weapons.vdata). */
 	public static final float KNIFE_ARMOR_RATIO = 1.7f;
 
-	private record Hit(UUID attacker, String weapon, int flags, long tick) {
+	/** A hit for the death notice: who, with what, the flags, when, and from which grenade (its entity id; 0: none). */
+	private record Hit(UUID attacker, String weapon, int flags, long tick, int source) {
 	}
 
 	private static final Map<UUID, Hit> LAST_HIT = new ConcurrentHashMap<>();
@@ -134,6 +135,11 @@ public final class Combat {
 		return HELMET.contains(player.getUUID());
 	}
 
+	/** A player respawned: their HUD gets the armor they kept (keep_inventory), if any. */
+	public static void respawned(net.minecraft.server.level.ServerPlayer p) {
+		syncArmor(p);
+	}
+
 	/** Put a player's armor back (a refund: Refunds). */
 	public static void setArmor(Player player, float armor, boolean helmet) {
 		if (armor > 0f) {
@@ -194,13 +200,15 @@ public final class Combat {
 		return toHealth;
 	}
 
-	/** The player was flashed (for the kill feed's blind-kill icon). */
-	public static void flashed(ServerPlayer p, float seconds) {
+	/** The player was flashed (for the kill feed's blind-kill icon); {@code strength} below 1: a teammate's, never fully white. */
+	public static void flashed(ServerPlayer p, float seconds, float strength) {
 		long now = p.level().getGameTime();
-		BLIND_UNTIL.put(p.getUUID(), now + (long) Math.ceil(seconds * 20f));
-		// the white-out: the first 45 % of the flash (as the flash overlay draws it)
-		long white = now + (long) Math.ceil(seconds * 0.45f * 20f);
-		WHITE_UNTIL.merge(p.getUUID(), white, Math::max);
+		BLIND_UNTIL.merge(p.getUUID(), now + (long) Math.ceil(seconds * 20f), Math::max);
+		if (strength >= 1f) {
+			// the white-out: the first 45 % of the flash (as the flash overlay draws it)
+			long white = now + (long) Math.ceil(seconds * 0.45f * 20f);
+			WHITE_UNTIL.merge(p.getUUID(), white, Math::max);
+		}
 	}
 
 	private static final Map<UUID, Long> WHITE_UNTIL = new ConcurrentHashMap<>();
@@ -226,7 +234,12 @@ public final class Combat {
 
 	/** Remember a CS weapon hit on a victim (by kill feed icon name) for its death notice. */
 	public static void markHit(Entity attacker, Entity victim, String weapon, int flags) {
-		LAST_HIT.put(victim.getUUID(), new Hit(attacker == null ? null : attacker.getUUID(), weapon, flags, victim.level().getGameTime()));
+		markHit(attacker, victim, weapon, flags, 0);
+	}
+
+	/** As above, from the grenade with this entity id (one grenade's kills count together: the multi-kill bonus). */
+	public static void markHit(Entity attacker, Entity victim, String weapon, int flags, int source) {
+		LAST_HIT.put(victim.getUUID(), new Hit(attacker == null ? null : attacker.getUUID(), weapon, flags, victim.level().getGameTime(), source));
 	}
 
 	/** Hit / kill feedback: to the attacker, the victim and everyone near the victim. */
@@ -257,12 +270,20 @@ public final class Combat {
 		}
 		Entity killer = source.getEntity();
 		Hit hit = LAST_HIT.remove(victim.getUUID());
-		ARMOR.remove(victim.getUUID());
-		HELMET.remove(victim.getUUID());
-		syncArmor(victim);
-		DEFUSER.remove(victim.getUUID());
+		if (!(victim instanceof net.minecraft.server.level.ServerPlayer vp0 && dev.countercraft.team.CsInventory.keepsInventory(vp0))) {
+			// (keep_inventory: a player keeps their kevlar, helmet and defuse kit too, as Minecraft armor is kept)
+			ARMOR.remove(victim.getUUID());
+			HELMET.remove(victim.getUUID());
+			syncArmor(victim);
+			DEFUSER.remove(victim.getUUID());
+		}
 		if (hit != null && level.getGameTime() - hit.tick() > HIT_MEMORY) {
 			hit = null;
+		}
+		if (hit != null && (hit.flags() & KillFeedPayload.GRENADE_DIRECT) != 0
+				&& (source.getDirectEntity() == null || source.getDirectEntity().getId() != hit.source())) {
+			// bonked / popped / hit through a window, then killed by something else: those don't count
+			hit = new Hit(hit.attacker(), hit.weapon(), hit.flags() & ~KillFeedPayload.GRENADE_DIRECT, hit.tick(), hit.source());
 		}
 		if (killer == null && hit != null && hit.attacker() != null) {
 			killer = level.getEntity(hit.attacker());
@@ -276,7 +297,7 @@ public final class Combat {
 			// CS2's death cam / panel and ragdoll (the weapon as the kill feed would name it)
 			Entity k = killer;
 			String w = k == null || k == victim ? "" : hit != null && (hit.attacker() == null || hit.attacker().equals(k.getUUID())) ? hit.weapon() : "";
-			int fl = hit != null ? hit.flags() : 0;
+			int fl = hit != null ? hit.flags() & KillFeedPayload.FEED_FLAGS : 0;
 			DeathTracker.died(vp, source, k, w, fl);
 		}
 		// explosions (a creeper, TNT; not CS2's HE grenade, which has its own icon) show as "<who> [TNT] <victim>"
@@ -286,7 +307,9 @@ public final class Combat {
 		}
 		int flags = 0;
 		String weapon;
-		if (killer == null || killer == victim) {
+		if (hit != null && "planted_c4".equals(hit.weapon()) && hit.attacker() == null) {
+			weapon = "planted_c4"; // the bomb got them: CS2's feed shows the bomb alone
+		} else if (killer == null || killer == victim) {
 			flags |= KillFeedPayload.F_SUICIDE;
 			weapon = "";
 		} else if (hit != null && (hit.attacker() == null || hit.attacker().equals(killer.getUUID()))) {
@@ -300,8 +323,9 @@ public final class Combat {
 			weapon = "";
 		}
 		if (killer instanceof net.minecraft.server.level.ServerPlayer sp && killer != victim) {
-			dev.countercraft.team.Economy.onKill(sp, victim, weapon, hit != null ? hit.flags() : 0);
-			dev.countercraft.Achievements.onKill(sp, victim, weapon, hit != null ? hit.flags() : 0);
+			dev.countercraft.team.Economy.onKill(sp, victim, weapon, hit != null ? hit.flags() : 0, hit != null ? hit.source() : 0);
+			dev.countercraft.team.Assists.onKill(sp, victim);
+			dev.countercraft.Achievements.onKill(sp, victim, weapon, hit != null ? hit.flags() : 0, hit != null ? hit.source() : 0);
 			dev.countercraft.RunStats.onKill(sp, victim, weapon, hit != null ? hit.flags() : 0);
 			// an airborne Scout / AWP kill: 5 s without fall damage
 			if (hit != null && (hit.flags() & KillFeedPayload.F_INAIR) != 0 && (weapon.equals("ssg08") || weapon.equals("awp"))) {
@@ -310,7 +334,7 @@ public final class Combat {
 		}
 		String killerName = killer == null || killer == victim ? "" : killer.getDisplayName().getString();
 		KillFeedPayload p = new KillFeedPayload(killerName, killerPlayer, killer == null ? -1 : killer.getId(), victim.getDisplayName().getString(),
-				victimPlayer, victim.getId(), weapon, flags, faction(killer == victim ? null : killer), faction(victim));
+				victimPlayer, victim.getId(), weapon, flags & KillFeedPayload.FEED_FLAGS, faction(killer == victim ? null : killer), faction(victim));
 		for (ServerPlayer sp : level.getServer().getPlayerList().getPlayers()) {
 			if (ServerPlayNetworking.canSend(sp, KillFeedPayload.TYPE)) {
 				ServerPlayNetworking.send(sp, p);

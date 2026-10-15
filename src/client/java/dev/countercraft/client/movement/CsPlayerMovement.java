@@ -43,6 +43,16 @@ public final class CsPlayerMovement {
 	private static double staminaAt = Double.NEGATIVE_INFINITY;
 	private static double landSpeed;
 	private static boolean landedThisTick;
+	/**
+	 * The last landing: when it shows on screen (System.nanoTime; the camera is drawn a tick behind the movement), the speed
+	 * it landed with (CS2's stashed speed) and whether no ground step has slowed it yet.
+	 */
+	private static long landNanos = Long.MIN_VALUE / 2;
+	private static double stash;
+	private static boolean fresh;
+	/** System.nanoTime of the last jump key press (JumpPressMixin) and of this movement tick. */
+	private static long jumpKeyNanos;
+	private static long tickNanos;
 	private static double landPunch;              // degrees of roll at landPunchAt
 	private static double landPunchAt = Double.NEGATIVE_INFINITY;
 	private static boolean active;
@@ -115,6 +125,11 @@ public final class CsPlayerMovement {
 		return CsMove.RUN_SPEED;
 	}
 
+	/** The jump key went down (JumpPressMixin). */
+	public static void jumpKeyDown(long nanos) {
+		jumpKeyNanos = nanos;
+	}
+
 	/** Called instead of vanilla travel while {@link #handles} is true. */
 	public static void travel(LocalPlayer p) {
 		if (!active) {
@@ -139,11 +154,21 @@ public final class CsPlayerMovement {
 		boolean jumpDown = in.jump();
 		boolean jumpPressed = jumpDown && !jumpHeld;
 		jumpHeld = jumpDown;
-		boolean wantJump = jumpPressed || (jumpDown && MovementSettings.autoBhop);
+		boolean wantJump = jumpPressed || (jumpDown && CsMove.autoBhop);
+		tickNanos = System.nanoTime();
 		double fwd = (in.forward() ? 1 : 0) - (in.backward() ? 1 : 0);
 		double side = (in.right() ? 1 : 0) - (in.left() ? 1 : 0);
 		boolean walking = MovementKeys.WALK.isDown();
 		boolean crouching = in.shift() || p.isCrouching(); // stays down under a low ceiling, like Minecraft's pose
+		if (dev.countercraft.client.GunClient.plantProgress() >= 0f) {
+			// planting the C4: held still and crouched (the camera comes down with it). The server's speed modifier
+			// can't do it here: CS movement leaves Counter-Craft's own modifiers out (its speeds are the weapons')
+			fwd = 0;
+			side = 0;
+			jumpPressed = false;
+			wantJump = false;
+			crouching = true;
+		}
 		double maxSpeed = maxSpeed(p);
 		float yaw = (float) Math.toRadians(p.getYRot());
 		effects(p);
@@ -155,10 +180,10 @@ public final class CsPlayerMovement {
 			carry -= CsMove.TICK;
 			ladderRelease = Math.max(0, ladderRelease - CsMove.TICK);
 			boolean jumped = p.onClimbable() && ladderRelease <= 0 ? ladder(p, CsMove.TICK, jumpPressed, fwd, side)
-					: step(p, CsMove.TICK, wantJump, fwd, side, walking, crouching, maxSpeed, yaw);
+					: step(p, CsMove.TICK, wantJump, jumpPressed, fwd, side, walking, crouching, maxSpeed, yaw);
 			if (jumped) {
 				jumpPressed = false;
-				wantJump = jumpDown && MovementSettings.autoBhop; // one press, one jump
+				wantJump = jumpDown && CsMove.autoBhop; // one press, one jump
 			}
 		}
 		Vec3 moved = p.position().subtract(start);
@@ -345,8 +370,8 @@ public final class CsPlayerMovement {
 	}
 
 	/** One 1/64 s Source move. Returns true if the player jumped. */
-	private static boolean step(LocalPlayer p, double dt, boolean wantJump, double fwd, double side, boolean walking,
-			boolean crouching, double maxSpeed, float yaw) {
+	private static boolean step(LocalPlayer p, double dt, boolean wantJump, boolean pressed, double fwd, double side,
+			boolean walking, boolean crouching, double maxSpeed, float yaw) {
 		boolean onGround = p.onGround();
 		// crouch: ducking in the air pulls the feet up (and back down when standing up)
 		double before = duck;
@@ -364,17 +389,34 @@ public final class CsPlayerMovement {
 			// CS2's stamina: a jump right after landing (or jumping) is weaker, recovering over ~0.25 s
 			double s = staminaNow();
 			double mul = Math.max(0.0, 1.0 - s / 100.0);
+			// a press right after the landing showed (auto bunny hopping: on the landing itself) leaves with the speed it
+			// landed with, whatever the ground did while the press waited for its tick; any other jump takes the landing
+			// slow-down with it
+			double since = fresh && CsMove.autoBhop ? 0 : pressed ? (jumpKeyNanos - landNanos) / 1e9 : -1;
+			if (since >= 0 && since <= CsMove.BHOP_TIME_WINDOW) {
+				double h = Math.hypot(vel.x, vel.z);
+				if (h > 1e-6 && stash > h) {
+					vel = new Vec3(vel.x * stash / h, vel.y, vel.z * stash / h);
+				}
+			} else {
+				staminaCap(maxSpeed * speedScale, s);
+			}
+			if (debug) {
+				CounterCraft.LOG.info("[countercraft] mv jump pressed {} ms after landing, stamina {}", String.format("%.1f", since * 1000),
+						String.format("%.1f", s));
+			}
 			stamina = Math.min(CsMove.staminaMax, s + CsMove.jumpStamina());
 			staminaAt = clock;
 			double h = Math.hypot(vel.x, vel.z);
 			double limit = CsMove.BHOP_SPEED_CAP * maxSpeed * speedScale;
-			Vec3 hv = !MovementSettings.enableBhop && h > limit ? new Vec3(vel.x * limit / h, 0, vel.z * limit / h) : new Vec3(vel.x, 0, vel.z);
+			Vec3 hv = !CsMove.enableBhop && h > limit ? new Vec3(vel.x * limit / h, 0, vel.z * limit / h) : new Vec3(vel.x, 0, vel.z);
 			vel = new Vec3(hv.x, CsMove.JUMP_TAKEOFF * mul * jumpScale, hv.z);
 			lastJumpMul = mul;
 			onGround = false;
 			jumped = true;
 		} else if (onGround) {
 			friction(dt, surface); // a jump on the landing step skips friction (CS2's stashed speed)
+			fresh = false;
 		}
 
 		// wish direction from the keys (cl_forwardspeed / cl_sidespeed 450, always clamped to the max speed)
@@ -396,6 +438,7 @@ public final class CsPlayerMovement {
 			double scale = walking || duck > 0.5 ? CsMove.RUN_SPEED * speedMul * speedScale : cap;
 			accelerate(dx, dz, wishSpeed, CsMove.ACCELERATE * scale * dt * surface);
 			vel = new Vec3(vel.x, 0, vel.z);
+			staminaCap(maxSpeed * speedScale, staminaNow()); // CS2's landing slow-down: stamina caps your speed too, until it recovers
 		} else {
 			double add = Math.min(wishSpeed, CsMove.AIR_MAX_WISHSPEED) - (vel.x * dx + vel.z * dz);
 			if (add > 0 && wishSpeed > 0) {
@@ -455,6 +498,9 @@ public final class CsPlayerMovement {
 		boolean landed = now && !wasOnGround;
 		if (landed) {
 			landSpeed = Math.max(0, -vy0);
+			landNanos = tickNanos + 50_000_000L;
+			stash = Math.hypot(vel.x, vel.z);
+			fresh = true;
 			stamina = Math.min(CsMove.staminaMax, staminaNow() + CsMove.landStamina(landSpeed));
 			staminaAt = clock;
 			landedThisTick = true;
@@ -511,6 +557,20 @@ public final class CsPlayerMovement {
 	}
 
 	/** Source friction: speed drops by max(speed, sv_stopspeed) x sv_friction x dt. */
+	/**
+	 * CS2's landing slow-down: with stamina left, the horizontal speed is held to (1 - 2 x stamina / 100) of the running
+	 * speed (measured running; walking and crouching aren't, so their own caps aren't cut).
+	 */
+	private static void staminaCap(double cap, double s) {
+		if (s > 0) {
+			double limit = cap * Math.max(0, 1 - CsMove.STAMINA_SPEED * s / 100);
+			double h = Math.hypot(vel.x, vel.z);
+			if (h > limit) {
+				vel = new Vec3(vel.x * limit / h, vel.y, vel.z * limit / h);
+			}
+		}
+	}
+
 	private static void friction(double dt, double surface) {
 		double speed = Math.hypot(vel.x, vel.z);
 		if (speed < 0.1) {

@@ -23,6 +23,18 @@ public record KillFeedPayload(String attacker, boolean attackerPlayer, int attac
 	public static final int F_BLIND = 16;
 	public static final int F_INAIR = 32;
 	public static final int F_SUICIDE = 64;
+	/** The kill feed's own flags; above them, the server's (bounty bonuses), never sent. */
+	public static final int FEED_FLAGS = 127;
+	/** Server only: a grenade's impact killed (it hit the creature in flight, CS2's 1 damage). */
+	public static final int F_IMPACT = 128;
+	/** Server only: a grenade that had bounced off a wall before it went off. */
+	public static final int F_BANK = 256;
+	/** Server only: the decoy's pop (not its impact). */
+	public static final int F_POP = 512;
+	/** Server only: a grenade that had smashed through glass (a window) on its way. */
+	public static final int F_WINDOW = 1024;
+	/** Server only: the flags that only count when the grenade itself dealt the killing hit. */
+	public static final int GRENADE_DIRECT = F_IMPACT | F_POP | F_WINDOW;
 
 	public static final Type<KillFeedPayload> TYPE = new Type<>(CounterCraft.id("kill_feed"));
 	public static final StreamCodec<ByteBuf, KillFeedPayload> CODEC = StreamCodec.of((buf, p) -> {

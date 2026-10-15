@@ -216,6 +216,10 @@ public final class AgentClient {
 		in.jumped = s.wasGround && !in.onGround && s.vy > 50;
 		s.wasGround = in.onGround;
 		in.onLadder = p.onClimbable() && !in.onGround;
+		// a planted bomb says who's defusing it (synced to everyone)
+		for (dev.countercraft.gun.PlantedC4 bomb : p.level().getEntitiesOfClass(dev.countercraft.gun.PlantedC4.class, p.getBoundingBox().inflate(4))) {
+			in.defusing |= bomb.defuser() == p.getId();
+		}
 		in.yaw = p.getViewYRot(partialTick);
 		// first person: the visible body (legs, belly) stays upright; looking up / down only moves the head and arms,
 		// which the viewmodel stands in for. Third person bends the spine with the aim as CS2 does.
@@ -302,6 +306,8 @@ public final class AgentClient {
 			in.weaponCategory = "weapon_category_knife";
 		} else if (stack.getItem() instanceof GrenadeItem) {
 			in.weaponCategory = "weapon_category_grenade";
+		} else if (stack.getItem() instanceof dev.countercraft.gun.C4Item) {
+			in.weaponCategory = "weapon_category_equipment"; // CS2's (weapon type weapon_c4)
 		}
 	}
 

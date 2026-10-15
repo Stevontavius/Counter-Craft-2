@@ -26,7 +26,7 @@ abstract class CreativeInventoryMixin {
 			return;
 		}
 		var slots = ((AbstractContainerScreen<?>) (Object) this).getMenu().slots;
-		for (int i = 0; i < CsInventory.SIZE; i++) {
+		for (int i = 0; i < CsInventory.MENU_SLOTS; i++) {
 			int idx = CsSlots.MENU_START + i;
 			if (idx < slots.size()) {
 				Slot s = slots.get(idx);

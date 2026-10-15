@@ -25,6 +25,10 @@ loom {
 			if (project.hasProperty("quickPlay")) {
 				programArgs "--quickPlaySingleplayer", project.property("quickPlay").toString()
 			}
+			// dev: `gradlew runClient -PquickPlayServer=localhost` joins a server (runServerGui's) straight away
+			if (project.hasProperty("quickPlayServer")) {
+				programArgs "--quickPlayMultiplayer", project.property("quickPlayServer").toString()
+			}
 			vmArgs "--enable-native-access=ALL-UNNAMED"
 		}
 		// dev: `gradlew runServerGui` starts a dedicated server with its window (CC2's), in run-server/
@@ -85,12 +89,12 @@ tasks.register("installerJar", Jar) {
 	}
 }
 
-// `gradlew installerBeta`: the BETA 1.2.3 test build of the installer, in INSTALLERTESTBETA/ (installerJar and its jar stay as
+// `gradlew installerBeta`: the BETA 1.3 test build of the installer, in INSTALLERTESTBETA/ (installerJar and its jar stay as
 // they are): the same contents, its own folder and name
 tasks.register("installerBeta", Jar) {
 	notCompatibleWithConfigurationCache("bundles files from the runtime classpath")
 	destinationDirectory = file("INSTALLERTESTBETA")
-	archiveFileName = "CC2-Installer-Beta-1.2.3-Universal.jar" // the release's names: this, CC2-Installer-Beta-1.2.3-Windows.zip, CC2-Server-Beta-1.2.3.jar
+	archiveFileName = "CC2-Installer-Beta-1.3-Universal.jar" // the release's names: this, CC2-Installer-Beta-1.3-Windows.zip, CC2-Server-Beta-1.3.jar
 	from sourceSets.installer.output
 	from sourceSets.installerBoot.output
 	from("LICENSE") {
@@ -112,7 +116,7 @@ tasks.register("installerBeta", Jar) {
 		}
 	}
 	manifest {
-		attributes "Main-Class": "dev.countercraft.installer.Boot", "Implementation-Version": "BETA 1.2.3"
+		attributes "Main-Class": "dev.countercraft.installer.Boot", "Implementation-Version": "BETA 1.3"
 	}
 }
 

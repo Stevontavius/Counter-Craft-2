@@ -70,6 +70,7 @@ public final class BossFights {
 			}
 			int before = Economy.money(p);
 			Economy.add(p, bounty);
+			Achievements.bounty(p, bounty);
 			int got = Economy.money(p) - before;
 			p.sendSystemMessage(Component.literal("+$" + got + ": Award for defeating the " + name + ".").withColor(0x6FB86F));
 		}

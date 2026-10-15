@@ -23,8 +23,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * The CS2 side of a player's inventory: 8 slots (CS2's weapon slots: 0 primary, 1 pistol, 2 knife, 3-6 grenades,
- * 7 Zeus) beside the Minecraft inventory, and whether the player is in CS mode. In CS mode the hand holds the selected
+ * The CS2 side of a player's inventory: 9 slots (CS2's weapon slots: 0 primary, 1 pistol, 2 knife, 3-6 grenades,
+ * 7 Zeus, 8 the C4) beside the Minecraft inventory, and whether the player is in CS mode. The C4 slot is a test
+ * ({@code /beta test_c4 1} opens it, {@link #C4_TEST}); the inventory screens show the first 8 only. In CS mode the hand holds the selected
  * CS slot instead of the hotbar (see the Inventory mixin): number keys / scroll pick CS slots, CS2's weapon list
  * replaces the hotbar. The knife slot always holds the team's knife (set by the loadout, never moved by hand).
  *
@@ -38,7 +39,25 @@ public final class CsInventory {
 	public static final int GRENADE0 = 3;
 	public static final int GRENADES = 4;
 	public static final int ZEUS = 7;
-	public static final int SIZE = 8;
+	public static final int C4 = 8;
+	public static final int SIZE = 9;
+	/** The slots the inventory screens show (not the C4's). */
+	public static final int MENU_SLOTS = 8;
+
+	/** The C4 test is on in this world ({@code /beta test_c4 1}): set on every level, saved and synced to its players. */
+	public static final AttachmentType<Boolean> C4_TEST = AttachmentRegistry.<Boolean>builder()
+			.persistent(Codec.BOOL)
+			.syncWith(ByteBufCodecs.BOOL, AttachmentSyncPredicate.all())
+			.buildAndRegister(CounterCraft.id("c4_test"));
+
+	/** The C4 test is on: the C4 may exist (its slot, planted bombs), CTs can buy the defuse kit, the blast debug view. */
+	public static boolean c4Test(net.minecraft.world.level.Level level) {
+		return Boolean.TRUE.equals(level.getAttached(C4_TEST));
+	}
+
+	public static boolean c4Test(Player p) {
+		return c4Test(p.level());
+	}
 
 	/** The slots and the mode. Mutable on purpose: stacks are changed in place like the vanilla inventory's. */
 	public static final class Data {
@@ -95,6 +114,11 @@ public final class CsInventory {
 	public static void init() {
 	}
 
+	/** Minecraft's keep_inventory game rule is on where this player is. */
+	public static boolean keepsInventory(ServerPlayer p) {
+		return p.level().getGameRules().get(net.minecraft.world.level.gamerules.GameRules.KEEP_INVENTORY);
+	}
+
 	/** The player's CS slots (created empty if missing). */
 	public static Data of(Player p) {
 		Data d = p.getAttached(DATA);
@@ -127,6 +151,9 @@ public final class CsInventory {
 		}
 		if (stack.getItem() instanceof KnifeItem) {
 			return KNIFE;
+		}
+		if (stack.getItem() instanceof dev.countercraft.gun.C4Item) {
+			return C4;
 		}
 		return -1;
 	}
@@ -252,11 +279,12 @@ public final class CsInventory {
 	/**
 	 * Death, CS2 competitive (gamemode_competitive.cfg): mp_death_drop_gun 1 drops the best gun (primary, else pistol),
 	 * mp_death_drop_grenade 2 the grenade in hand, else the best (most expensive); mp_death_drop_taser drops the Zeus
-	 * (engine default, not verified). Everything else is lost; the knife stays (it's the loadout's).
+	 * (engine default, not verified). Everything else is lost; the knife stays (it's the loadout's). With Minecraft's
+	 * keep_inventory on, nothing drops: the CS slots are kept like the rest of the inventory.
 	 */
 	public static void onDeath(ServerPlayer p) {
 		Data d = p.getAttached(DATA);
-		if (d == null) {
+		if (d == null || keepsInventory(p)) {
 			return;
 		}
 		int gun = !d.get(PRIMARY).isEmpty() ? PRIMARY : !d.get(SECONDARY).isEmpty() ? SECONDARY : -1;
@@ -279,7 +307,7 @@ public final class CsInventory {
 			if (i == KNIFE || d.get(i).isEmpty()) {
 				continue;
 			}
-			if (i == gun || i == ZEUS) {
+			if (i == gun || i == ZEUS || i == C4) { // (CS2 drops the bomb too)
 				CsDrop.fall(p, d.get(i));
 			} else if (i == nade) {
 				CsDrop.fall(p, d.get(i).copyWithCount(1));
@@ -293,6 +321,9 @@ public final class CsInventory {
 	public static boolean fits(Player p, ItemStack stack) {
 		Data d = of(p);
 		int slot = slotFor(stack);
+		if (slot == C4 && !c4Test(p)) {
+			return false;
+		}
 		if (slot < 0 || slot == KNIFE) {
 			return false;
 		}
@@ -367,6 +398,9 @@ public final class CsInventory {
 	public static boolean give(ServerPlayer p, ItemStack stack) {
 		Data d = of(p);
 		int slot = slotFor(stack);
+		if (slot == C4 && !c4Test(p)) {
+			return false;
+		}
 		if (slot < 0 || slot == KNIFE) {
 			return false;
 		}

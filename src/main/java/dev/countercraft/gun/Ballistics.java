@@ -131,6 +131,18 @@ public final class Ballistics {
 	 * {@code hitPos} where the bullet ended (past the bodies it went through).
 	 */
 	public static ShotResult shoot(ServerLevel level, LivingEntity shooter, GunSpec spec, Vec3 from, Vec3 dir) {
+		bulletKills = 0;
+		ShotResult r = bullet(level, shooter, spec, from, dir);
+		if (bulletKills >= 3 && shooter instanceof net.minecraft.server.level.ServerPlayer sp) {
+			dev.countercraft.Achievements.award(sp, "collateral_damage");
+		}
+		return r;
+	}
+
+	/** Mobs this bullet has killed so far (server thread). */
+	private static int bulletKills;
+
+	private static ShotResult bullet(ServerLevel level, LivingEntity shooter, GunSpec spec, Vec3 from, Vec3 dir) {
 		Vec3 to = from.add(dir.scale(Math.min(RANGE, spec.range() / UNITS_PER_BLOCK)));
 		boolean woodLeft = woodbang(spec);
 		boolean awp = spec.id().equals("awp");
@@ -211,6 +223,9 @@ public final class Ballistics {
 		// one already charged takes the shot as anything else does
 		if (spec.taser() && owner instanceof net.minecraft.world.entity.monster.Creeper creeper && !creeper.isPowered() && creeper.isAlive()) {
 			creeper.getEntityData().set(dev.countercraft.mixin.CreeperAccessor.countercraft$powered(), true);
+			if (shooter instanceof net.minecraft.server.level.ServerPlayer sp) {
+				dev.countercraft.Achievements.award(sp, "electrician");
+			}
 			level.playSound(null, creeper.getX(), creeper.getY(), creeper.getZ(), net.minecraft.sounds.SoundEvents.LIGHTNING_BOLT_IMPACT,
 					net.minecraft.sounds.SoundSource.HOSTILE, 0.6f, 1.6f);
 			return new ShotResult(target, dist, false, 0f, hit);
@@ -230,15 +245,36 @@ public final class Ballistics {
 		dev.countercraft.RunStats.hit(shooter);
 		boolean wasAlive = owner.isAlive();
 
-		DamageSource source = new DamageSource(spec.taser() ? CounterCraft.damageType(level, CounterCraft.TASER) : CounterCraft.bulletDamage(level), shooter, shooter);
+		boolean kills = spec.taser() && zeusKills(owner);
+		DamageSource source = new DamageSource(kills ? CounterCraft.damageType(level, CounterCraft.ZEUS_KILL)
+				: spec.taser() ? CounterCraft.damageType(level, CounterCraft.TASER) : CounterCraft.bulletDamage(level), shooter, shooter);
 		// a dragon part passes the hit on to the dragon (vanilla: x 1/4 off the head); an end crystal explodes
-		target.hurtServer(level, source, mc);
+		target.hurtServer(level, source, kills ? Math.max(mc, lethal((LivingEntity) owner)) : mc);
 		if (owner instanceof LivingEntity) {
 			boolean lethal = wasAlive && (!owner.isAlive() || owner instanceof LivingEntity le && le.isDeadOrDying());
+			if (lethal && owner instanceof net.minecraft.world.entity.Mob) {
+				bulletKills++;
+			}
 			dev.countercraft.Combat.hitSound(level, shooter, owner, head, lethal, armored, false, hit);
 		}
 		level.sendParticles(ParticleTypes.DAMAGE_INDICATOR, hit.x, hit.y, hit.z, head ? 4 : 1, 0.05, 0.05, 0.05, 0.1);
 		return new ShotResult(target, dist, head, mc, hit);
+	}
+
+	/**
+	 * A Zeus shock always kills a player (Counter-Craft's rule: being shocked is a catastrophic mistake): its damage types
+	 * (countercraft:zeus_kill, and :shock for zapping the water you're in) get past armor, Resistance, Protection and
+	 * shields, hardcore's lighter player damage doesn't apply, and the damage is more than all their health and absorption.
+	 * Only a Totem of Undying in hand saves them (it pops). Creative players and anyone still picking a team are exempt, as
+	 * from any damage. Mobs take the Zeus's hit.
+	 */
+	public static boolean zeusKills(Entity e) {
+		return e instanceof net.minecraft.server.level.ServerPlayer p && !p.getAbilities().invulnerable && !dev.countercraft.team.TeamLock.pending(p);
+	}
+
+	/** More damage than {@code e} can take. */
+	static float lethal(LivingEntity e) {
+		return e.getHealth() + e.getAbsorptionAmount() + 1f;
 	}
 
 	/** An entity a ray hit: where, how far along the ray (blocks), and CS2's hit group there. */

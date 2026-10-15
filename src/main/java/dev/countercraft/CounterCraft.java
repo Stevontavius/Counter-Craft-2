@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
 public class CounterCraft implements ModInitializer {
 	public static final String MOD_ID = "countercraft";
 	/** The release name players see ("BETA 1.1"); the jar's version (fabric.mod.json) stays a plain number for Fabric and the build. */
-	public static final String RELEASE = "BETA 1.2.3";
+	public static final String RELEASE = "BETA 1.3";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_ID);
 
 	/** Damage types (data/countercraft/damage_type/*.json); all bypass vanilla armor and i-frames, like CS2. */
@@ -68,8 +68,15 @@ public class CounterCraft implements ModInitializer {
 	public static final ResourceKey<DamageType> FIRE = ResourceKey.create(Registries.DAMAGE_TYPE, id("fire"));
 	/** The Zeus: not a projectile (an enderman can't dodge it, unlike bullets). */
 	public static final ResourceKey<DamageType> TASER = ResourceKey.create(Registries.DAMAGE_TYPE, id("taser"));
-	/** Zeusing the water you're in (WaterShock): no attacker, so no team or PvP rule stops it. */
+	/** Zeusing the water you're in (WaterShock): no attacker, so no team or PvP rule stops it. Always lethal, as ZEUS_KILL. */
 	public static final ResourceKey<DamageType> SHOCK = ResourceKey.create(Registries.DAMAGE_TYPE, id("shock"));
+	/**
+	 * The Zeus hitting a player (the taser's death messages): always lethal ({@link dev.countercraft.gun.Ballistics#zeusKills}),
+	 * its tags get it past armor, Resistance, Protection and shields (not a totem).
+	 */
+	public static final ResourceKey<DamageType> ZEUS_KILL = ResourceKey.create(Registries.DAMAGE_TYPE, id("zeus_kill"));
+	/** A planted C4's blast: past armor, effects, enchantments and shields, never scaled by difficulty (PlantedC4). */
+	public static final ResourceKey<DamageType> C4_BLAST = ResourceKey.create(Registries.DAMAGE_TYPE, id("c4_blast"));
 
 	public static final EntityType<GrenadeEntity> GRENADE_ENTITY = Registry.register(BuiltInRegistries.ENTITY_TYPE, id("grenade"),
 			EntityType.Builder.<GrenadeEntity>of(GrenadeEntity::new, MobCategory.MISC).sized(0.1f, 0.1f).clientTrackingRange(8)
@@ -79,6 +86,14 @@ public class CounterCraft implements ModInitializer {
 			id("dropped_weapon"), EntityType.Builder.<dev.countercraft.gun.DroppedWeaponEntity>of(dev.countercraft.gun.DroppedWeaponEntity::new,
 					MobCategory.MISC).sized(0.4f, 0.15f).clientTrackingRange(8).updateInterval(1)
 					.build(ResourceKey.create(Registries.ENTITY_TYPE, id("dropped_weapon"))));
+
+	/** A planted C4 (a test for a future PvE mode). */
+	public static final EntityType<dev.countercraft.gun.PlantedC4> PLANTED_C4 = Registry.register(BuiltInRegistries.ENTITY_TYPE,
+			id("planted_c4"), EntityType.Builder.<dev.countercraft.gun.PlantedC4>of(dev.countercraft.gun.PlantedC4::new, MobCategory.MISC)
+					.sized(0.5f, 0.2f).clientTrackingRange(10).updateInterval(20).noSave()
+					.build(ResourceKey.create(Registries.ENTITY_TYPE, id("planted_c4"))));
+	/** The C4 (a test: {@code /cc give beta c4} with {@code /beta test_c4 1}). */
+	public static Item C4;
 
 	/** CS2 run speed with the knife out; guns scale movement by maxSpeed / this. */
 	public static final float CS_BASE_SPEED = 250f;
@@ -126,11 +141,14 @@ public class CounterCraft implements ModInitializer {
 					.attributes(speedModifier(g.maxSpeed()));
 			GRENADES.put(g.id(), Registry.register(BuiltInRegistries.ITEM, key, new GrenadeItem(props, g)));
 		}
+		ResourceKey<Item> c4Key = ResourceKey.create(Registries.ITEM, id("c4"));
+		C4 = Registry.register(BuiltInRegistries.ITEM, c4Key, new dev.countercraft.gun.C4Item(new Item.Properties().setId(c4Key).stacksTo(1)));
 		sound("weapon.knife.slash");
 		sound("weapon.knife.hit");
 		sound("weapon.knife.hitwall");
 		sound("weapon.knife.stab");
 		sound("molotov.extinguish");
+		dev.countercraft.command.BetaCommand.init();
 		dev.countercraft.block.SurfRamps.init();
 		Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, id("weapons"), FabricCreativeModeTab.builder()
 				.title(Component.translatable("itemGroup.countercraft.weapons"))
@@ -165,6 +183,24 @@ public class CounterCraft implements ModInitializer {
 		});
 		PayloadTypeRegistry.clientboundPlay().register(FlashPayload.TYPE, FlashPayload.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(ShotFxPayload.TYPE, ShotFxPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(dev.countercraft.net.ShockPayload.TYPE, dev.countercraft.net.ShockPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(dev.countercraft.net.C4Payload.TYPE, dev.countercraft.net.C4Payload.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(dev.countercraft.net.C4ActionPayload.TYPE, dev.countercraft.net.C4ActionPayload.CODEC);
+		ServerPlayNetworking.registerGlobalReceiver(dev.countercraft.net.C4ActionPayload.TYPE, (payload, context) -> {
+			var p = context.player();
+			switch (payload.action()) {
+				case dev.countercraft.net.C4ActionPayload.PLANT_START -> dev.countercraft.gun.C4Item.startPlanting(p);
+				case dev.countercraft.net.C4ActionPayload.PLANT_STOP -> dev.countercraft.gun.C4Item.stopPlanting(p);
+				case dev.countercraft.net.C4ActionPayload.DEFUSE -> {
+					if (p.level().getEntity(payload.target()) instanceof dev.countercraft.gun.PlantedC4 bomb) {
+						bomb.hold(p);
+					}
+				}
+				default -> {
+				}
+			}
+		});
+		ServerTickEvents.END_SERVER_TICK.register(dev.countercraft.gun.C4Item::tick);
 		PayloadTypeRegistry.clientboundPlay().register(CvarsPayload.TYPE, CvarsPayload.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(StepFxPayload.TYPE, StepFxPayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(StepPayload.TYPE, StepPayload.CODEC);
@@ -227,12 +263,15 @@ public class CounterCraft implements ModInitializer {
 			dev.countercraft.steam.GenuineSkins.join(handler.getPlayer());
 		});
 		dev.countercraft.team.Economy.init();
+		dev.countercraft.team.Assists.init();
+		GrenadeSelfTest.init();
 		SurvivalRecord.init();
 		RunStats.init();
 		AutoRadio.init();
 		ServerTickEvents.END_SERVER_TICK.register(Scoreboard::tick);
 		ServerTickEvents.END_SERVER_TICK.register(BossArmor::tick);
 		ServerTickEvents.END_SERVER_TICK.register(GunNoise::tick);
+		ServerTickEvents.END_SERVER_TICK.register(dev.countercraft.team.Buying::tick);
 		PayloadTypeRegistry.clientboundPlay().register(dev.countercraft.net.MvpPayload.TYPE, dev.countercraft.net.MvpPayload.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(dev.countercraft.net.ScoreboardPayload.TYPE, dev.countercraft.net.ScoreboardPayload.CODEC);
 		ServerTickEvents.END_SERVER_TICK.register(RunStats::tick);
@@ -277,6 +316,7 @@ public class CounterCraft implements ModInitializer {
 			dev.countercraft.team.CsInventory.refreshKnife(context.player());
 		});
 		dev.countercraft.team.Teams.init();
+		dev.countercraft.team.Buying.init();
 		dev.countercraft.team.Loadouts.init();
 		dev.countercraft.team.ExtraAmmo.init();
 		dev.countercraft.team.TeamLock.init();
@@ -314,6 +354,7 @@ public class CounterCraft implements ModInitializer {
 		net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents.AFTER_RESPAWN.register(
 				(oldPlayer, newPlayer, alive) -> {
 					dev.countercraft.team.CsInventory.refreshKnife(newPlayer);
+					Combat.respawned(newPlayer);
 					DeathTracker.reset(newPlayer.getUUID());
 					if (!alive) {
 						dev.countercraft.team.Loadouts.giveStartingPistol(newPlayer);
@@ -355,6 +396,7 @@ public class CounterCraft implements ModInitializer {
 				});
 		CommandRegistrationCallback.EVENT.register((dispatcher, buildContext, selection) -> {
 			CcCommand.register(dispatcher);
+			dev.countercraft.command.BetaCommand.register(dispatcher);
 			ServerCvars.register(dispatcher);
 			Achievements.register(dispatcher);
 			dev.countercraft.bot.TestBots.register(dispatcher);

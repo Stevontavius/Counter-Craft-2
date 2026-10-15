@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/root",
+ "display": {
+  "icon": {
+   "id": "countercraft:m4a1_silencer"
+  },
+  "title": {
+   "text": "Ace!"
+  },
+  "description": {
+   "text": "Kill 5 hostile mobs in rapid succession without reloading"
+  },
+  "frame": "task",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}

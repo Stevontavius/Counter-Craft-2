@@ -24,6 +24,18 @@ import net.minecraft.world.item.ItemStack;
  * <li>HvH? (challenge): 10 no-scope headshot kills on skeletons (any kind) with a scoped rifle.</li>
  * <li>Movement Player! (challenge): 100 no-scope AWP kills while airborne (players or hostile mobs).</li>
  * <li>The Global Elite (challenge): 100 days survived in a row; dying resets the count.</li>
+ * <li>Smoke Screen: a hostile mob chasing you loses you in a smoke and gives up its search (MobVision).</li>
+ * <li>Flash Photography: one of your flashbangs blinds 5 hostile mobs.</li>
+ * <li>Ace!: 5 hostile mobs killed with guns within {@link #ACE_TICKS}, with no reload started in between.</li>
+ * <li>Collateral Damage: one bullet kills 3 mobs (Ballistics' body penetration).</li>
+ * <li>Electrician: your Zeus charges a creeper.</li>
+ * <li>Tactical Retreat: your flashbang stops a hissing creeper's fuse.</li>
+ * <li>Money Talks (challenge): {@link #NIGHT_MONEY} in mob bounties (kills, assists, bosses; before the money cap) in
+ * one night ({@link #NIGHT_START} to dawn).</li>
+ * <li>The Floor Is Lava (challenge): 10 hostile mobs killed by one molotov / incendiary's fire (burning on after it too).</li>
+ * <li>Deforestation Department (challenge): a hostile mob killed by a decoy's pop.</li>
+ * <li>To the Window! To the Wall! (challenge): a hostile mob killed by a grenade that smashed through glass.</li>
+ * <li>Clutch or Kick (challenge, hardcore): the only player alive at a dawn that brings the others back (AnotherChance).</li>
  * <li>The day-long goals read the player's saved {@link SurvivalRecord} (deaths and days survived in this world).</li>
  * </ul>
  * Counting challenges keep their count as criteria ("1".."N"), so the advancement screen shows the progress and it saves
@@ -35,6 +47,17 @@ public final class Achievements {
 	/** Kobe! range in blocks (about 790 CS units). */
 	public static final double KOBE_RANGE = 20.0;
 	private static final long DAY = 24000L;
+	/** Ace!: the five kills within this many ticks (10 s). */
+	public static final long ACE_TICKS = 200;
+	/** Money Talks: bounties in one night. */
+	public static final int NIGHT_MONEY = 10_000;
+	/** Night, for Money Talks: from when beds work (ticks into the day) to dawn. */
+	public static final long NIGHT_START = 12542;
+	private static final java.util.Map<java.util.UUID, java.util.ArrayDeque<Long>> ACE = new java.util.concurrent.ConcurrentHashMap<>();
+	/** Player -> {night, bounties so far that night}. */
+	private static final java.util.Map<java.util.UUID, long[]> NIGHT_BOUNTIES = new java.util.concurrent.ConcurrentHashMap<>();
+	/** Molotov / incendiary entity id -> {hostile kills, game time of the last}. */
+	private static final java.util.Map<Integer, long[]> FIRE_KILLS = new java.util.concurrent.ConcurrentHashMap<>();
 
 	private static long lastDay = -1;
 
@@ -200,14 +223,66 @@ public final class Achievements {
 		return r.streak();
 	}
 
-	/** A player's kill, with the kill feed's weapon id and flags. */
-	public static void onKill(ServerPlayer killer, LivingEntity victim, String weapon, int flags) {
+	/** A gun reload started (Ace! breaks). */
+	public static void reloaded(ServerPlayer p) {
+		ACE.remove(p.getUUID());
+	}
+
+	/** {@code p} was paid a mob bounty (a kill, an assist, a boss): Money Talks counts tonight's. */
+	public static void bounty(ServerPlayer p, int amount) {
+		long clock = p.level().getServer().overworld().getOverworldClockTime();
+		if (amount <= 0 || Math.floorMod(clock, DAY) < NIGHT_START) {
+			return;
+		}
+		long night = Math.floorDiv(clock, DAY);
+		long[] n = NIGHT_BOUNTIES.computeIfAbsent(p.getUUID(), u -> new long[] {night, 0});
+		if (n[0] != night) {
+			n[0] = night;
+			n[1] = 0;
+		}
+		n[1] += amount;
+		if (n[1] >= NIGHT_MONEY) {
+			award(p, "money_talks");
+		}
+	}
+
+	/** A player's kill, with the kill feed's weapon id and flags; {@code source}: the grenade's entity id (0: none). */
+	public static void onKill(ServerPlayer killer, LivingEntity victim, String weapon, int flags, int source) {
 		boolean hostile = victim instanceof Enemy;
+		long now = killer.level().getGameTime();
+		if (hostile && "decoy".equals(weapon) && (flags & KillFeedPayload.F_POP) != 0) {
+			award(killer, "deforestation_department");
+		}
+		if (hostile && (flags & KillFeedPayload.F_WINDOW) != 0) {
+			award(killer, "to_the_window");
+		}
+		if (hostile && "inferno".equals(weapon) && source != 0) {
+			FIRE_KILLS.values().removeIf(v -> now - v[1] > 20 * 60);
+			long[] k = FIRE_KILLS.computeIfAbsent(source, x -> new long[2]);
+			k[0]++;
+			k[1] = now;
+			if (k[0] >= 10) {
+				award(killer, "the_floor_is_lava");
+			}
+		}
+		if (hostile && CounterCraft.GUNS.containsKey(weapon)) {
+			java.util.ArrayDeque<Long> kills = ACE.computeIfAbsent(killer.getUUID(), u -> new java.util.ArrayDeque<>());
+			kills.addLast(now);
+			while (now - kills.peekFirst() > ACE_TICKS) {
+				kills.pollFirst();
+			}
+			if (kills.size() >= 5) {
+				award(killer, "ace");
+			}
+		}
 		boolean head = (flags & KillFeedPayload.F_HEADSHOT) != 0;
 		boolean noscope = (flags & KillFeedPayload.F_NOSCOPE) != 0;
 		boolean air = (flags & KillFeedPayload.F_INAIR) != 0;
 		if (hostile && "hegrenade".equals(weapon) && killer.distanceTo(victim) >= KOBE_RANGE) {
 			award(killer, "kobe");
+		}
+		if (hostile && (flags & KillFeedPayload.F_IMPACT) != 0) {
+			award(killer, "bonk");
 		}
 		if (Combat.fullyFlashed(killer)) {
 			award(killer, "blind_luck");

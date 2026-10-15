@@ -1,0 +1,28 @@
+{
+ "parent": "countercraft:cs2/kobe",
+ "display": {
+  "icon": {
+   "id": "countercraft:molotov"
+  },
+  "title": {
+   "text": "The Floor Is Lava"
+  },
+  "description": {
+   "text": "Kill 10 hostile mobs with one molotov"
+  },
+  "frame": "challenge",
+  "show_toast": true,
+  "announce_to_chat": true,
+  "hidden": false
+ },
+ "criteria": {
+  "done": {
+   "trigger": "minecraft:impossible"
+  }
+ },
+ "requirements": [
+  [
+   "done"
+  ]
+ ]
+}
