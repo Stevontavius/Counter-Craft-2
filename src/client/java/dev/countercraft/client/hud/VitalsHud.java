@@ -59,10 +59,13 @@ public final class VitalsHud {
 		// health
 		boolean hardcore = mc.level != null && mc.level.getLevelData().isHardcore();
 		boolean blink = p.hurtTime > 0 && (p.hurtTime / 3) % 2 == 1;
-		// a planted C4 in reach: what its blast would take if it went off now; if that kills, the heart becomes the
-		// warning sign, and both flash
-		float blast = dev.countercraft.gun.PlantedC4.damageTo(p);
+		// in a planted C4's reach at all: what its shockwave would take if it went off now (the server's, walls and all).
+		// The heart becomes the warning sign, in that damage's colour (red once it kills, then orange, yellow, lime and
+		// cyan as it falls: the blast debug map's), and it and the damage flash with the beeps
+		var preview = p.getAttached(dev.countercraft.gun.PlantedC4.PREVIEW);
+		float blast = preview != null ? preview.damage() : 0f;
 		boolean lethal = blast > 0f && blast >= p.getHealth() + p.getAbsorptionAmount();
+		int warn = lethal ? 0xFF2A2A : dev.countercraft.client.BlastDebug.color(blast, p.getMaxHealth()) & 0xFFFFFF;
 		// the flash keeps time with the bomb closest to going off (its beeps)
 		float flash = 1f;
 		int soonest = Integer.MAX_VALUE;
@@ -73,9 +76,9 @@ public final class VitalsHud {
 				flash = bomb.warningFlash();
 			}
 		}
-		if (lethal) {
-			// the warning triangle of the Zeus-in-water and GPU warnings, bold red, in the heart's place
-			CsUi.text(g, "§l⚠", x + icon / 2, y + icon * 0.05f, ICON * 1.1f, h, Math.round(flash * 255) << 24 | 0xFF2A2A, 0);
+		if (blast > 0f) {
+			// the warning triangle of the Zeus-in-water and GPU warnings, bold, in the heart's place
+			CsUi.text(g, "§l⚠", x + icon / 2, y + icon * 0.05f, ICON * 1.1f, h, Math.round(flash * 255) << 24 | warn, 0);
 		} else {
 			// vanilla layers the heart over its container (the outline)
 			sprite(g, Identifier.withDefaultNamespace("hud/heart/container" + (hardcore ? "_hardcore" : "") + (blink ? "_blinking" : "")), x, y, icon);
@@ -92,7 +95,7 @@ public final class VitalsHud {
 		}
 		if (blast > 0f) {
 			String dmg = " -" + pct(Math.min(blast, p.getHealth() + p.getAbsorptionAmount()) / p.getMaxHealth());
-			CsUi.text(g, dmg, x, textY, TEXT, h, (lethal ? Math.round(flash * 255) << 24 : 0xFF000000) | 0xFF3030, -1);
+			CsUi.text(g, dmg, x, textY, TEXT, h, Math.round(Math.max(0.35f, flash) * 255) << 24 | warn, -1);
 			x += CsUi.textWidth(dmg, TEXT, h);
 		}
 		x += 40 * k;

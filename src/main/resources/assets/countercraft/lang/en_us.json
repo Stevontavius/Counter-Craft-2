@@ -90,7 +90,7 @@
   "key.countercraft.ping": "Ping",
   "key.countercraft.crosshair": "Crosshair settings",
   "key.countercraft.debug_hitboxes": "Debug hitboxes",
-  "key.countercraft.grenade_tracer": "Debug grenade tracer",
+  "key.countercraft.grenade_tracer": "Grenade debug",
   "key.countercraft.switch_hands": "Switch hands (cl_righthand)",
   "key.countercraft.buy": "Buy menu",
   "key.countercraft.team": "Select team",

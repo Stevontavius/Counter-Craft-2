@@ -28,8 +28,13 @@ public final class CompassHud {
 	private CompassHud() {
 	}
 
-	/** Space the locator bar and the compass take at the top (GUI units), for what sits below them. */
+	/** Space the locator bar, the compass and a planted bomb's icon take at the top (GUI units), for what sits below. */
 	public static int height() {
+		return baseHeight() + BombNotices.iconSpace();
+	}
+
+	/** Space the locator bar and the compass take at the top (GUI units): where the planted bomb's icon goes. */
+	public static int baseHeight() {
 		if (!dev.countercraft.client.options.CcOptions.compass()) {
 			return LOCATOR_SPACE;
 		}

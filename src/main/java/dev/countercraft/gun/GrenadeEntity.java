@@ -113,6 +113,11 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 	private Vec3 serverPos;
 	private Vec3 serverVel;
 	private static final double RESYNC = 2.0;
+	/** Client, for the grenade debug: record each physics step's position ({@link #trail}), and the bounces so far. */
+	public static boolean recordTrail;
+	public final java.util.List<Vec3> trail = new java.util.ArrayList<>();
+	public final java.util.List<Vec3> bounceAt = new java.util.ArrayList<>();
+	private int bounces;
 
 	public GrenadeEntity(EntityType<? extends GrenadeEntity> type, Level level) {
 		super(type, level);
@@ -152,6 +157,31 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 	/** Client: stopped (lying on its side). */
 	public boolean resting() {
 		return resting;
+	}
+
+	/** Client: bounces seen so far (the grenade debug). */
+	public int bounces() {
+		return bounces;
+	}
+
+	/** Ticks since it popped (smoke, fire, decoy) or since it was thrown while flying. */
+	public int stateAge() {
+		return entityData.get(STATE_AGE);
+	}
+
+	/** How long its effect lasts once it pops (seconds): smoke 18, fire 7, decoy 15; HE / flash go off at once. */
+	public static double effectSeconds(int state) {
+		return switch (state) {
+			case SMOKING -> SMOKE_TICKS / 20.0;
+			case BURNING -> FIRE_TICKS / 20.0;
+			case DECOYING -> DECOY_TICKS / 20.0;
+			default -> 0;
+		};
+	}
+
+	/** In-air fuse: HE / flash go off, a molotov bursts in the air (seconds); smoke / decoy wait to stop after it. */
+	public static double fuseSeconds(String kind) {
+		return "molotov".equals(kind) || "incgrenade".equals(kind) ? MOLOTOV_AIR / 20.0 : FUSE / 20.0;
 	}
 
 	public int state() {
@@ -252,6 +282,18 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 		while (carry >= GrenadePhysics.TICK - 1e-9) {
 			carry -= GrenadePhysics.TICK;
 			GrenadePhysics.step(sim, trace);
+			if (level().isClientSide()) {
+				// the grenade debug's tracer: every 1/64 s step of the flight, bounces where they happened
+				if (sim.hit != null) {
+					bounces++;
+					if (recordTrail && bounceAt.size() < 256) {
+						bounceAt.add(sim.pos.scale(1.0 / UNITS));
+					}
+				}
+				if (recordTrail && !sim.stopped && trail.size() < 4096) {
+					trail.add(sim.pos.scale(1.0 / UNITS));
+				}
+			}
 			if (sim.hit != null && impact(sim.hit)) {
 				break;
 			}
@@ -663,6 +705,14 @@ public class GrenadeEntity extends ThrowableItemProjectile {
 			}
 		}
 		return false;
+	}
+
+	/** A burning molotov / incendiary goes out at once (CS2's bomb shockwave puts them out completely). */
+	public void extinguish() {
+		if (state() == BURNING) {
+			sound("molotov.extinguish", 1f);
+			discard();
+		}
 	}
 
 	/**

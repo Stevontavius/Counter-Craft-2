@@ -42,7 +42,7 @@ public final class GrenadeSelfTest {
 		if (ON) {
 			ServerTickEvents.END_SERVER_TICK.register(server -> {
 				List<ServerPlayer> ps = server.getPlayerList().getPlayers();
-				if (ps.isEmpty() || tick > 2680) {
+				if (ps.isEmpty() || tick > 2720) {
 					return;
 				}
 				tick++;
@@ -416,12 +416,17 @@ public final class GrenadeSelfTest {
 				KEEP[0] = bombs.isEmpty() ? null : bombs.getFirst();
 				log("c4_plant_mouse1", KEEP[0] != null && dev.countercraft.team.CsInventory.of(p).get(dev.countercraft.team.CsInventory.C4).isEmpty(),
 						"bombs=" + bombs.size());
-				// step back and look down at it
-				tp(level, p, c.getX() + 0.5, c.getY() + 1, c.getZ() - 1.2, 41f);
+				// step back (2.5 blocks, in reach) and look down at it
+				tp(level, p, c.getX() + 0.5, c.getY() + 1, c.getZ() - 2.0, 30.5f);
+			}
+			case 1650 -> {
+				// a cow walks in front mid-defuse, between the player and the bomb: the locked-in defuse goes on
+				KEEP[5] = spawn(level, EntityTypes.COW, 0, 0, -1.25, m -> m.setNoAi(true));
 			}
 			case 1740 -> {
 				var bomb = (dev.countercraft.gun.PlantedC4) KEEP[0];
-				log("c4_defused_e_kit", bomb != null && bomb.isRemoved(), "within 5 s of holding E");
+				log("c4_defused_e_kit", bomb != null && bomb.isRemoved(), "within 5 s of holding E, a cow in front from 1.5 s");
+				((Entity) KEEP[5]).discard();
 			}
 			case 1850 -> {
 				tp(level, p, c.getX() + 0.5, c.getY() + 1, c.getZ() + 6.5, 0f);
@@ -432,6 +437,10 @@ public final class GrenadeSelfTest {
 				// one 11 blocks away behind a wall: the blast goes through walls
 				fill(level, c.offset(-3, 1, 1), c.offset(3, 3, 1), Blocks.OBSIDIAN.defaultBlockState());
 				KEEP[2] = spawn(level, EntityTypes.HUSK, 0, 0, -4.5, m -> m.setNoAi(true));
+				// one sealed in obsidian 9 blocks off, well inside the instant kill in a straight line: walls stop the wave
+				fill(level, c.offset(8, 1, 5), c.offset(10, 3, 7), Blocks.OBSIDIAN.defaultBlockState());
+				fill(level, c.offset(9, 1, 6), c.offset(9, 2, 6), Blocks.AIR.defaultBlockState());
+				KEEP[4] = spawn(level, EntityTypes.HUSK, 9, 0, 6, m -> m.setNoAi(true));
 				// the bands: a husk 50 blocks out (16 damage), and the player in survival, 30 blocks out (lethal) for a
 				// moment, then 70 (10 damage) when it goes off; pads to stand on
 				fill(level, c.offset(0, 0, 34), c.offset(0, 0, 34), Blocks.OBSIDIAN.defaultBlockState());
@@ -441,30 +450,47 @@ public final class GrenadeSelfTest {
 				p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
 				p.setHealth(p.getMaxHealth());
 				tp(level, p, c.getX() + 0.5, c.getY() + 1, c.getZ() + 21.5, 0f);
-				log("c4_bands", dev.countercraft.gun.PlantedC4.damageAt(20) == dev.countercraft.gun.PlantedC4.LETHAL
-						&& dev.countercraft.gun.PlantedC4.damageAt(30) == 16f && dev.countercraft.gun.PlantedC4.damageAt(40) == 10f
-						&& dev.countercraft.gun.PlantedC4.damageAt(50) == 6f && dev.countercraft.gun.PlantedC4.damageAt(60) == 2f
-						&& dev.countercraft.gun.PlantedC4.damageAt(70) == 0f, "");
+				// the damage curve: lethal close in, then easing off with every block out to nothing at the edge
+				boolean falls = true;
+				for (double d = dev.countercraft.gun.PlantedC4.CERTAIN_DEATH + 0.25; d <= dev.countercraft.gun.PlantedC4.BLAST_RADIUS; d += 0.25) {
+					falls &= dev.countercraft.gun.PlantedC4.damageAt(d) < dev.countercraft.gun.PlantedC4.damageAt(d - 0.25);
+				}
+				log("c4_curve", falls && dev.countercraft.gun.PlantedC4.damageAt(5) == dev.countercraft.gun.PlantedC4.LETHAL
+						&& dev.countercraft.gun.PlantedC4.damageAt(22) == 19f && dev.countercraft.gun.PlantedC4.damageAt(27.5) == 16f
+						&& Math.abs(dev.countercraft.gun.PlantedC4.damageAt(30) - 14.636f) < 0.01f
+						&& dev.countercraft.gun.PlantedC4.damageAt(68.75) == 0f && dev.countercraft.gun.PlantedC4.damageAt(70) == 0f,
+						"30 m: " + dev.countercraft.gun.PlantedC4.damageAt(30));
 			}
 			case 1990 -> {
 				// facing the bomb (the blast debug view is on with the test)
 				p.teleportTo(level, c.getX() + 0.5, c.getY() + 1, c.getZ() + 45.5, java.util.Set.of(), 180f, 8f, true);
 			}
 			case 2652 -> {
+				// the shockwave travels: 27.5 blocks out takes it half a second
+				Mob far = (Mob) KEEP[3];
+				log("c4_wave_travels", far.isAlive() && far.getHealth() == far.getMaxHealth(), "health=" + far.getHealth());
+			}
+			case 2675 -> {
 				float hp = p.getHealth();
 				log("c4_player_hurt", hp >= 9.5f && hp <= 11f, "health=" + hp);
-				float husk = ((Mob) KEEP[3]).getHealth();
-				log("c4_band_50", ((Entity) KEEP[3]).isAlive() && Math.abs(husk - 4f) < 0.01f, "health=" + husk);
+				// in the open the wave's distance is the straight one: the curve's damage at exactly that distance
+				Mob mid = (Mob) KEEP[3];
+				double d = mid.getBoundingBox().getCenter().distanceTo(new Vec3(c.getX() + 0.5, c.getY() + 1.25, c.getZ() + 6.5));
+				float want = mid.getMaxHealth() - dev.countercraft.gun.PlantedC4.damageAt(d);
+				log("c4_curve_hit", mid.isAlive() && Math.abs(mid.getHealth() - want) < 0.05f,
+						String.format("%.1f m: health=%.2f want=%.2f", d, mid.getHealth(), want));
 				Vec3 back = (Vec3) KEEP[6];
 				tp(level, p, back.x, back.y, back.z, 0f);
 				p.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
 				p.setHealth(p.getMaxHealth());
 				fill(level, c.offset(-1, 0, 20), c.offset(1, 0, 46), Blocks.AIR.defaultBlockState());
 			}
-			case 2660 -> {
+			case 2680 -> {
+				Mob sealed = (Mob) KEEP[4];
+				log("c4_walls_block", sealed.isAlive() && sealed.getHealth() == sealed.getMaxHealth(), "health=" + sealed.getHealth());
 				log("c4_explodes", !((Entity) KEEP[1]).isAlive() && level.getBlockState(c.offset(0, 0, 6)).is(Blocks.OBSIDIAN)
 						&& level.getEntitiesOfClass(dev.countercraft.gun.PlantedC4.class, new AABB(c).inflate(R)).isEmpty(), "");
-				log("c4_through_walls", !((Entity) KEEP[2]).isAlive() && level.getBlockState(c.offset(0, 2, 1)).is(Blocks.OBSIDIAN), "");
+				log("c4_around_walls", !((Entity) KEEP[2]).isAlive() && level.getBlockState(c.offset(0, 2, 1)).is(Blocks.OBSIDIAN), "");
 				clear(level);
 				// the test switched off: a planted bomb, a carried C4, a dropped one and one in the inventory all go
 				dev.countercraft.gun.PlantedC4.plant(level, p);
@@ -475,13 +501,13 @@ public final class GrenadeSelfTest {
 				p.getInventory().add(new ItemStack(CounterCraft.C4));
 				dev.countercraft.command.BetaCommand.setC4Test(level.getServer(), false);
 			}
-			case 2666 -> {
+			case 2690 -> {
 				boolean gone = ((Entity) KEEP[0]).isRemoved() && ((Entity) KEEP[1]).isRemoved()
 						&& dev.countercraft.team.CsInventory.of(p).get(dev.countercraft.team.CsInventory.C4).isEmpty()
 						&& !p.getInventory().hasAnyMatching(s -> s.getItem() instanceof dev.countercraft.gun.C4Item);
 				log("c4_test_off", gone && !Buying.allowed(p, dev.countercraft.team.Teams.CT, "item_defuser"), "all gone=" + gone);
 			}
-			case 2670 -> {
+			case 2700 -> {
 				fill(level, c.offset(-R, 0, -R), c.offset(R, 6, R), Blocks.AIR.defaultBlockState());
 				clear(level);
 				CounterCraft.LOG.info("[countercraft] selftest done");

@@ -8,7 +8,7 @@ import org.joml.Vector3d;
 /**
  * A CS2 ragdoll as rigid bodies, solved with XPBD (Mueller et al., "Detailed Rigid Body Simulation with Extended
  * Position Based Dynamics"): CS2's bodies (mass, damping, capsule / sphere shapes -> inertia), its joints (anchors held
- * together; ragdoll joints keep the twist about the frame's x axis and the swing off it within CS2's limits, revolute
+ * together; ragdoll joints keep the twist about the frame's z axis and the swing off it within CS2's limits, revolute
  * joints (knees) only twist), CS2's gravity (sv_gravity 800 u/s^2), and the shapes colliding with Minecraft's block
  * collision boxes with friction. World space: Minecraft axes, metres. Approximations: no self-collision (CS2 disables
  * it on the jointed pairs only), shapes collide as spheres along each capsule, no bounce.
@@ -179,10 +179,21 @@ final class RagdollSim {
 		}
 	}
 
-	/** Set every body moving (m/s), then give {@code hit} an extra push. */
-	void launch(Vector3d velocity, Body hit, Vector3d push) {
+	/**
+	 * Set every body moving (m/s) with some of {@code push}, then give {@code hit} an extra push. A blast ({@code whole})
+	 * throws every body with all of it; a hit pushes the upper body more than the legs (15 % at the feet to 65 % at the
+	 * head), so the body topples over away from it rather than sliding.
+	 */
+	void launch(Vector3d velocity, Body hit, Vector3d push, boolean whole) {
+		double low = Double.MAX_VALUE;
+		double high = -Double.MAX_VALUE;
 		for (Body b : bodies) {
-			b.v.set(velocity).add(new Vector3d(push).mul(0.35));
+			low = Math.min(low, b.x.y);
+			high = Math.max(high, b.x.y);
+		}
+		for (Body b : bodies) {
+			double up = high - low < 1e-3 ? 0.5 : (b.x.y - low) / (high - low);
+			b.v.set(velocity).add(new Vector3d(push).mul(whole ? 1 : 0.15 + 0.5 * up));
 		}
 		if (hit != null) {
 			hit.v.add(push);
@@ -286,10 +297,11 @@ final class RagdollSim {
 		if (rel.w < 0) {
 			rel.set(-rel.x, -rel.y, -rel.z, -rel.w);
 		}
-		// twist about the frame's x axis, swing = the rest
-		double tl = Math.hypot(rel.x, rel.w);
-		Quaterniond twistQ = tl < 1e-9 ? new Quaterniond() : new Quaterniond(rel.x / tl, 0, 0, rel.w / tl);
-		double twist = 2 * Math.atan2(twistQ.x, twistQ.w);
+		// twist about the frame's z axis (CS2's: a knee's or an elbow's hinge line, the hip's and spine's bend, the head's
+		// turn), swing = the rest
+		double tl = Math.hypot(rel.z, rel.w);
+		Quaterniond twistQ = tl < 1e-9 ? new Quaterniond() : new Quaterniond(0, 0, rel.z / tl, rel.w / tl);
+		double twist = 2 * Math.atan2(twistQ.z, twistQ.w);
 		Quaterniond swingQ = new Quaterniond(rel).mul(new Quaterniond(twistQ).conjugate());
 		if (swingQ.w < 0) {
 			swingQ.set(-swingQ.x, -swingQ.y, -swingQ.z, -swingQ.w);
@@ -304,11 +316,12 @@ final class RagdollSim {
 		if (j.twist != null) {
 			double over = twist > j.twist[1] ? twist - j.twist[1] : twist < j.twist[0] ? twist - j.twist[0] : 0;
 			if (over != 0) {
-				Vector3d axis = qa.transform(new Vector3d(1, 0, 0));
+				Vector3d axis = qb.transform(new Vector3d(0, 0, 1)); // (the twist's axis: b's z, wherever the swing put it)
 				angular(j.a, j.b, axis, over);
 			}
 		}
 	}
+
 
 	/** Each collision sphere against the block collision boxes around it. */
 	private void collide(Body b) {

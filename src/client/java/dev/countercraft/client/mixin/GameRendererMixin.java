@@ -82,6 +82,7 @@ abstract class GameRendererMixin {
 	@ModifyArg(method = "renderLevel", at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/client/renderer/ProjectionMatrixBuffer;getBuffer(Lorg/joml/Matrix4f;)Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;"))
 	private Matrix4f countercraft$taaJitter(final Matrix4f projection) {
+		dev.countercraft.client.gpu.ShockwavePass.projection(projection);
 		return dev.countercraft.client.gpu.AntiAliasingPass.jitter(projection);
 	}
 
@@ -90,10 +91,18 @@ abstract class GameRendererMixin {
 			+ "Lnet/minecraft/client/renderer/state/OptionsRenderState;Z)V"))
 	private void countercraft$taaResolve(final CallbackInfo ci) {
 		dev.countercraft.client.gpu.AntiAliasingPass.afterLevel(gameRenderState.levelRenderState.cameraRenderState);
+		dev.countercraft.client.gpu.ShockwavePass.afterLevel(gameRenderState.levelRenderState.cameraRenderState);
+	}
+
+	/** CC2's Aspect Ratio (Video): the hand and viewmodel stretched or squeezed with the world (CameraMixin). */
+	@ModifyArg(method = "render3dHud", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/Projection;setupPerspective(FFFFF)V"), index = 3)
+	private float countercraft$aspectHand(final float width) {
+		return width * dev.countercraft.client.options.CcOptions.aspectFactor();
 	}
 
 	@Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;applyPostEffects()V", shift = At.Shift.AFTER))
 	private void countercraft$fxaa(final CallbackInfo ci) {
 		dev.countercraft.client.gpu.AntiAliasingPass.afterPost();
+		dev.countercraft.client.gpu.ShockwavePass.afterPost();
 	}
 }

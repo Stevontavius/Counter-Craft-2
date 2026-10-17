@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
 public class CounterCraft implements ModInitializer {
 	public static final String MOD_ID = "countercraft";
 	/** The release name players see ("BETA 1.1"); the jar's version (fabric.mod.json) stays a plain number for Fabric and the build. */
-	public static final String RELEASE = "BETA 1.3";
+	public static final String RELEASE = "BETA 1.3.1";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_ID);
 
 	/** Damage types (data/countercraft/damage_type/*.json); all bypass vanilla armor and i-frames, like CS2. */
@@ -185,6 +185,9 @@ public class CounterCraft implements ModInitializer {
 		PayloadTypeRegistry.clientboundPlay().register(ShotFxPayload.TYPE, ShotFxPayload.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(dev.countercraft.net.ShockPayload.TYPE, dev.countercraft.net.ShockPayload.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(dev.countercraft.net.C4Payload.TYPE, dev.countercraft.net.C4Payload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(dev.countercraft.net.BlastMapPayload.TYPE, dev.countercraft.net.BlastMapPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(dev.countercraft.net.ShockwavePayload.TYPE, dev.countercraft.net.ShockwavePayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(dev.countercraft.net.BlastWavePayload.TYPE, dev.countercraft.net.BlastWavePayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(dev.countercraft.net.C4ActionPayload.TYPE, dev.countercraft.net.C4ActionPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(dev.countercraft.net.C4ActionPayload.TYPE, (payload, context) -> {
 			var p = context.player();
@@ -201,6 +204,7 @@ public class CounterCraft implements ModInitializer {
 			}
 		});
 		ServerTickEvents.END_SERVER_TICK.register(dev.countercraft.gun.C4Item::tick);
+		dev.countercraft.gun.PlantedC4.init();
 		PayloadTypeRegistry.clientboundPlay().register(CvarsPayload.TYPE, CvarsPayload.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(StepFxPayload.TYPE, StepFxPayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(StepPayload.TYPE, StepPayload.CODEC);

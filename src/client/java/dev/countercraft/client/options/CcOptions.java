@@ -146,10 +146,13 @@ public final class CcOptions {
 	private static MusicMode musicMode = MusicMode.BOTH;
 	private static boolean challengeMvp = true;
 	private static boolean killFeed = true;
-	private static boolean compass = true;
+	/** Off by default (since BETA 1.3.1, saved as "show_compass": the old "compass" key, always on, is left behind). */
+	private static boolean compass = false;
 	private static WeaponSoundStyle weaponSoundStyle = WeaponSoundStyle.CS2;
 	/** Printstream's pearlescent sheen, x CS2's own strength (0: off, 1: as CS2, 2: double). */
 	private static float pearlescence = 1f;
+	/** The 3D view's aspect ratio: 0 native, -1 skinny, 1 stretched (see {@link #aspectFactor}). */
+	private static float aspect = 0f;
 	private static boolean gpuAgents = true;
 	private static boolean firstPersonLegs = true;
 	private static boolean viewmodelShaders = true;
@@ -185,7 +188,7 @@ public final class CcOptions {
 				}
 				challengeMvp = !j.has("challenge_mvp") || j.get("challenge_mvp").getAsBoolean();
 				killFeed = !j.has("kill_feed") || j.get("kill_feed").getAsBoolean();
-				compass = !j.has("compass") || j.get("compass").getAsBoolean();
+				compass = j.has("show_compass") && j.get("show_compass").getAsBoolean();
 				hotbarRarity = j.has("hotbar_rarity") && j.get("hotbar_rarity").getAsBoolean();
 				xray = j.has("xray") && j.get("xray").getAsBoolean();
 				teamList = !j.has("team_list") || j.get("team_list").getAsBoolean();
@@ -197,6 +200,9 @@ public final class CcOptions {
 				viewmodelShaders = !j.has("viewmodel_shaders") || j.get("viewmodel_shaders").getAsBoolean();
 				agentShaders = !j.has("agent_shaders") || j.get("agent_shaders").getAsBoolean();
 				gpuEnvironment = !j.has("gpu_environment") || j.get("gpu_environment").getAsBoolean();
+				if (j.has("aspect_ratio")) {
+					aspect = Math.max(-1f, Math.min(1f, j.get("aspect_ratio").getAsFloat()));
+				}
 				if (j.has("pearlescence")) {
 					pearlescence = Math.max(0f, Math.min(2f, j.get("pearlescence").getAsFloat()));
 				}
@@ -230,7 +236,7 @@ public final class CcOptions {
 			j.addProperty("music", musicMode.name());
 			j.addProperty("challenge_mvp", challengeMvp);
 			j.addProperty("kill_feed", killFeed);
-			j.addProperty("compass", compass);
+			j.addProperty("show_compass", compass);
 			j.addProperty("hotbar_rarity", hotbarRarity);
 			j.addProperty("xray", xray);
 			j.addProperty("team_list", teamList);
@@ -242,6 +248,7 @@ public final class CcOptions {
 			j.addProperty("gpu_environment", gpuEnvironment);
 			j.addProperty("weapon_sound_style", weaponSoundStyle.name());
 			j.addProperty("pearlescence", pearlescence);
+			j.addProperty("aspect_ratio", aspect);
 			j.addProperty("anti_aliasing", antiAliasing.name());
 			j.addProperty("texture_quality", textureQuality.name());
 			j.addProperty("paperdoll", paperdoll.name());
@@ -435,6 +442,26 @@ public final class CcOptions {
 	public static void setPearlescence(float v) {
 		load();
 		pearlescence = Math.max(0f, Math.min(2f, v));
+	}
+
+	/** The Aspect Ratio slider: -1 skinny, 0 native, 1 stretched. */
+	public static float aspect() {
+		load();
+		return aspect;
+	}
+
+	public static void setAspect(float v) {
+		load();
+		aspect = Math.max(-1f, Math.min(1f, v));
+	}
+
+	/**
+	 * What the 3D view's aspect ratio is multiplied by (the window's stays): stretched (right) renders narrower and stretches
+	 * it across the screen, at the end as CS's 4:3 stretched on a 16:9 screen (x 0.75); skinny (left) the other way (x 4/3).
+	 */
+	public static float aspectFactor() {
+		load();
+		return aspect == 0f ? 1f : (float) Math.pow(0.75, aspect);
 	}
 
 	public static AntiAliasing antiAliasing() {

@@ -9,6 +9,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -43,6 +45,19 @@ abstract class CameraMixin {
 			setRotation(pose.yaw(), pose.pitch());
 			this.detached = true;
 		}
+	}
+
+	/** CC2's Aspect Ratio (Video): the world drawn at another aspect ratio, stretched or squeezed to fill the window. */
+	@ModifyVariable(method = "setupPerspective", at = @At("HEAD"), argsOnly = true, ordinal = 3)
+	private float countercraft$aspect(final float width) {
+		return width * dev.countercraft.client.options.CcOptions.aspectFactor();
+	}
+
+	/** ...and culled to match (a skinny view sees wider: nothing at its edges goes missing). */
+	@ModifyArg(method = "createProjectionMatrixForCulling", at = @At(value = "INVOKE", target = "Lorg/joml/Matrix4f;perspective(FFFFZ)Lorg/joml/Matrix4f;"),
+			index = 1)
+	private float countercraft$aspectCulling(final float aspect) {
+		return aspect * dev.countercraft.client.options.CcOptions.aspectFactor();
 	}
 
 	/** No vanilla death zoom while the death cam plays (it has its own). */

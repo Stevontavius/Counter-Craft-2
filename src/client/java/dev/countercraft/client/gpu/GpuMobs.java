@@ -60,6 +60,11 @@ public final class GpuMobs {
 		if (texture == null || !GpuAgents.activeForMobs()) {
 			return false;
 		}
+		if (TextureStream.get(texture) == null) {
+			// its texture is still streaming in (a kind of mob not seen yet): Minecraft draws it meanwhile, else it'd be
+			// invisible for those frames (the GPU queue drops a draw whose texture isn't up)
+			return false;
+		}
 		Baked b = BAKED.computeIfAbsent(model, m -> bake((Model<?>) m));
 		if (b == NONE) {
 			return false;

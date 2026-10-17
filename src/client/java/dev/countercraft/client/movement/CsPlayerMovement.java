@@ -29,6 +29,9 @@ public final class CsPlayerMovement {
 	private static final double LADDER_SPEED = 200 * 0.78;
 	/** Jumping off a ladder: pushed away from it at 270 u/s (Source's LadderMove). */
 	private static final double LADDER_JUMP = 270;
+	/** Climbing pulls you onto the ladder's line: this much of the way a second (and at most this many blocks a second). */
+	private static final double LADDER_ALIGN = 10;
+	private static final double LADDER_ALIGN_MAX = 2.5;
 
 	private static Vec3 vel = Vec3.ZERO;          // units/s, Minecraft axes (y up)
 	private static Vec3 lastSetDelta;
@@ -179,7 +182,7 @@ public final class CsPlayerMovement {
 		while (carry >= CsMove.TICK - 1e-9) {
 			carry -= CsMove.TICK;
 			ladderRelease = Math.max(0, ladderRelease - CsMove.TICK);
-			boolean jumped = p.onClimbable() && ladderRelease <= 0 ? ladder(p, CsMove.TICK, jumpPressed, fwd, side)
+			boolean jumped = p.onClimbable() && ladderRelease <= 0 ? ladder(p, CsMove.TICK, jumpPressed, jumpDown, fwd, side)
 					: step(p, CsMove.TICK, wantJump, jumpPressed, fwd, side, walking, crouching, maxSpeed, yaw);
 			if (jumped) {
 				jumpPressed = false;
@@ -267,12 +270,18 @@ public final class CsPlayerMovement {
 	 * the ladder; the part of that motion pushing into the ladder becomes climbing, so looking up and holding forward
 	 * climbs, holding back descends; no gravity; jump pushes off. Ladders face away from their wall; vines, scaffolding
 	 * and other climbables count as facing you. Returns true if the player jumped off.
+	 * <p>Minecraft's own rules on top, where Source's leave you stuck (a ladder up a 1x1 shaft): pushing against any wall
+	 * while on it climbs it, whichever wall you face; and with no room behind you to push off, holding jump climbs
+	 * instead of letting go.</p>
 	 */
-	private static boolean ladder(LocalPlayer p, double dt, boolean jump, double fwd, double side) {
+	private static boolean ladder(LocalPlayer p, double dt, boolean jump, boolean jumpHeld, double fwd, double side) {
 		Vec3 n = ladderNormal(p);
 		Vec3 v;
 		boolean jumped = false;
-		if (jump) {
+		boolean boxedIn = !p.level().noCollision(p, p.getBoundingBox().move(n.scale(0.5)));
+		if (jumpHeld && boxedIn) {
+			v = new Vec3(0, LADDER_SPEED, 0); // nowhere to push off to (a shaft): climb, as Minecraft's jump does on a ladder
+		} else if (jump) {
 			// push off and fly: the ladder lets go for a moment (else the next 1/64 s step would catch you again)
 			v = n.scale(LADDER_JUMP);
 			jumped = true;
@@ -283,6 +292,10 @@ public final class CsPlayerMovement {
 			Vec3 look = p.getViewVector(1f);
 			Vec3 right = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
 			v = look.scale(fwd * LADDER_SPEED).add(right.scale(side * LADDER_SPEED));
+			// Minecraft's rule too: pushing against a wall (not the ladder's own) climbs, whichever wall of a 1x1 shaft
+			Vec3 push = new Vec3(v.x, 0, v.z);
+			boolean wall = push.lengthSqr() > 1e-6 && push.normalize().dot(n) > -0.7
+					&& !p.level().noCollision(p, p.getBoundingBox().move(push.normalize().scale(0.06)));
 			double into = v.dot(n);
 			v = v.subtract(n.scale(into)).add(0, -into, 0);
 			if (p.onGround() && into > 0) {
@@ -294,6 +307,22 @@ public final class CsPlayerMovement {
 			double lateral = v.dot(along);
 			if (lateral != 0 && !climbableAt(p, p.position().add(along.scale(Math.signum(lateral) * (p.getBbWidth() / 2 + 0.05))))) {
 				v = v.subtract(along.scale(lateral));
+			}
+			if (wall) {
+				v = new Vec3(v.x, Math.max(v.y, LADDER_SPEED), v.z);
+			}
+			// climbing lines you up with the ladder (its column's middle, against it), so you go through the 1x1 hole
+			// in a ceiling it climbs through (a village church's tower) instead of catching on its edge; strafing still
+			// moves you along a wide ladder
+			Vec3 centre = ladderCentre(p);
+			if (centre != null && Math.abs(v.y) > 1) {
+				Vec3 off = new Vec3(centre.x - p.getX(), 0, centre.z - p.getZ());
+				if (side != 0) {
+					off = off.subtract(along.scale(off.dot(along)));
+				}
+				Vec3 pull = off.scale(LADDER_ALIGN * CsMove.UNITS_PER_BLOCK);
+				double cap = LADDER_ALIGN_MAX * CsMove.UNITS_PER_BLOCK;
+				v = v.add(pull.lengthSqr() > cap * cap ? pull.normalize().scale(cap) : pull);
 			}
 		} else {
 			v = Vec3.ZERO; // hold still on the ladder
@@ -345,6 +374,16 @@ public final class CsPlayerMovement {
 		var level = p.level();
 		return level.getBlockState(net.minecraft.core.BlockPos.containing(at)).is(net.minecraft.tags.BlockTags.CLIMBABLE)
 				|| level.getBlockState(net.minecraft.core.BlockPos.containing(at.x, at.y + p.getEyeHeight(), at.z)).is(net.minecraft.tags.BlockTags.CLIMBABLE);
+	}
+
+	/** The middle of the ladder block the player is on (feet or eye height), or null for vines and other climbables. */
+	private static Vec3 ladderCentre(LocalPlayer p) {
+		for (net.minecraft.core.BlockPos pos : new net.minecraft.core.BlockPos[] {p.blockPosition(), net.minecraft.core.BlockPos.containing(p.getEyePosition())}) {
+			if (p.level().getBlockState(pos).hasProperty(net.minecraft.world.level.block.LadderBlock.FACING)) {
+				return new Vec3(pos.getX() + 0.5, p.getY(), pos.getZ() + 0.5);
+			}
+		}
+		return null;
 	}
 
 	/** The way the climbable at the player faces (horizontal unit vector, away from its wall). */

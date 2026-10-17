@@ -39,8 +39,12 @@ public final class Ragdolls {
 		final AgentRenderer renderer = new AgentRenderer();
 		/** Physics body per animation bone, or -1. */
 		final int[] bodyOf;
+		/** The player who died (a respawn makes a new one), and whether this client has seen them dead yet. */
+		final Player died;
+		boolean seenDead;
 
-		Ragdoll(UUID owner, int entityId, String agent, RagdollSim sim, float[] local, float[] deathWorld, Vec3 origin, AgentAnimator anim, int[] bodyOf) {
+		Ragdoll(UUID owner, int entityId, String agent, RagdollSim sim, float[] local, float[] deathWorld, Vec3 origin, AgentAnimator anim, int[] bodyOf, Player died) {
+			this.died = died;
 			this.owner = owner;
 			this.entityId = entityId;
 			this.agent = agent;
@@ -143,11 +147,11 @@ public final class Ragdolls {
 			}
 		}
 		Vec3 v = e.getDeltaMovement().scale(20);
-		sim.launch(new Vector3d(v.x, Math.max(-5, v.y), v.z), hit, new Vector3d(p.dx(), p.dy(), p.dz()).mul(p.speed()));
+		sim.launch(new Vector3d(v.x, Math.max(-5, v.y), v.z), hit, new Vector3d(p.dx(), p.dy(), p.dz()).mul(p.speed()), p.blast());
 		AgentAnimator anim = new AgentAnimator(data);
 		anim.bodyYaw = 0f;
 		RAGDOLLS.removeIf(r -> r.owner.equals(player.getUUID()));
-		RAGDOLLS.add(new Ragdoll(player.getUUID(), e.getId(), snap.agent(), sim, local, world, pos, anim, bodyOf));
+		RAGDOLLS.add(new Ragdoll(player.getUUID(), e.getId(), snap.agent(), sim, local, world, pos, anim, bodyOf, player));
 		while (RAGDOLLS.size() > MAX) {
 			RAGDOLLS.remove(0);
 		}
@@ -186,6 +190,7 @@ public final class Ragdolls {
 	}
 
 	/** Every client tick: simulate; remove the bodies of players who are back alive. */
+
 	public static void tick(Minecraft mc) {
 		if (mc.level == null) {
 			RAGDOLLS.clear();
@@ -194,8 +199,11 @@ public final class Ragdolls {
 		for (Iterator<Ragdoll> it = RAGDOLLS.iterator(); it.hasNext(); ) {
 			Ragdoll r = it.next();
 			Player owner = mc.level.getPlayerByUUID(r.owner);
-			if (owner != null && owner.isAlive() && !owner.isDeadOrDying()) {
-				it.remove(); // respawned
+			// respawned: alive, as a new player or seen dead first (the ragdoll can come a tick before this client hears
+			// their health is gone; a dead player seen again from afar is a new one, still dead)
+			r.seenDead |= owner == r.died && owner.isDeadOrDying();
+			if (owner != null && owner.isAlive() && !owner.isDeadOrDying() && (owner != r.died || r.seenDead)) {
+				it.remove();
 				continue;
 			}
 			if (owner == null && mc.getConnection() != null && mc.getConnection().getPlayerInfo(r.owner) == null) {

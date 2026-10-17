@@ -57,7 +57,7 @@ def convert_one(cs2, model, skel_bones):
     joints = []
     for j in data.get("m_joints") or []:
         joints.append({
-            "type": j["m_nType"],  # 3 = revolute (hinge about the frame's x axis), 4 = ragdoll (cone + twist)
+            "type": j["m_nType"],  # 3 = revolute (hinge about the frame's z axis), 4 = ragdoll (cone + twist about z)
             "body1": j["m_nBody1"], "body2": j["m_nBody2"],
             "frame1": _frame(j["m_Frame1"]), "frame2": _frame(j["m_Frame2"]),
             "swing": [j["m_SwingLimit"]["m_flMin"], j["m_SwingLimit"]["m_flMax"]] if j.get("m_bEnableSwingLimit") else None,

@@ -53,6 +53,11 @@ public final class KillFeed {
 	private KillFeed() {
 	}
 
+	/** A kill feed icon's size in its texture (textures/hud/killfeed/&lt;name&gt;.png), or null if the pack hasn't it. */
+	public static int[] iconSize(String name) {
+		return ICONS.get(name);
+	}
+
 	public static void reload(ResourceManager rm) {
 		ICONS.clear();
 		try (var in = rm.open(CounterCraft.id("hud/killfeed.json"))) {

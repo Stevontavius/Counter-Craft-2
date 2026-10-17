@@ -49,7 +49,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 VRF = ROOT / "tools" / "vrf" / "Source2Viewer-CLI.exe"
 PACK = "CounterCraft-CS2-Assets"
-RELEASE = "BETA 1.3"
+RELEASE = "BETA 1.3.1"
 OPTIONAL = ("skins", "gloves", "musickits")
 MANIFEST = "cc2-manifest.json"
 MANIFEST_FORMAT = 1
@@ -64,7 +64,7 @@ STEPS = {
     "weapontable": ("Weapon table", 2, False),
     # what's added after a release's main steps, small enough to rerun in place: the C4 (model, clips, sounds), the
     # announcer's bomb lines. 2: the C4's model and clips; 3: its skeleton for agents' hands
-    "extras": ("Extra sounds", 3, False),
+    "extras": ("Extra sounds", 5, False),
     "agents": ("Agents", 1, False),
     "ragdoll": ("Ragdolls", 1, False),
     "eyes": ("Agent eyes", 1, False),

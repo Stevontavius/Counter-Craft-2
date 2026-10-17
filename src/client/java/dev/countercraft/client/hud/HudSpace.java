@@ -7,7 +7,7 @@ package dev.countercraft.client.hud;
  */
 public final class HudSpace {
 	public enum Panel {
-		MONEY, KILL_FEED, PAPERDOLL, VITALS, CS_HOTBAR
+		MONEY, KILL_FEED, PAPERDOLL, VITALS, CS_HOTBAR, NOTICE
 	}
 
 	private static final int N = Panel.values().length;
@@ -34,7 +34,7 @@ public final class HudSpace {
 	}
 
 	/** The panel's bottom, or {@code otherwise} when it isn't showing. */
-	static float bottom(Panel p, float otherwise) {
+	public static float bottom(Panel p, float otherwise) {
 		return shown(p) ? BOTTOM[p.ordinal()] : otherwise;
 	}
 }

@@ -923,18 +923,103 @@ def add_csgo(args, assets, sounds_json):
 # the C4's sounds (CS2's sound events) and the announcer's bomb lines
 EXTRA_EVENTS = ("c4.initiate", "c4.plant", "C4.PlantSound", "C4.PlantSound_10sec", "C4.ExplodeWarning", "c4.disarmstart",
                 "c4.disarmfinish", "c4.explode")
+# CS2's July 2026 shockwave debris, after its crack (shockwave_sounds): CS2 plays it at 0.1 under its hit, too quiet
+# on its own in Minecraft
+EXTRA_LOUDER = {"c4.shockwave.debris": 0.45}
 EXTRA_FILES = {"announcer.bombpl": "sounds/vo/announcer/cs2_classic/bombpl.vsnd",
                "announcer.bombdef": "sounds/vo/announcer/cs2_classic/bombdef.vsnd"}
 
 
-def write_extras(assets, add_sound, log, convert_c4):
+def shockwave_sounds(cs2, assets, ffmpeg, sounds_json, log):
+    """Two of Counter-Craft's own, built from CS2's C4 audio (CS2 has neither: its shockwave events are one-shots):
+    c4.shockwave.rumble, the shockwave coming, a seamless low loop (the body of c4_shockwave_01 and of the thump,
+    levelled), faded in by the game as the front closes in; and c4.shockwave.crack, it hitting you: the explosion's
+    bright onset, cut short, over the thump's punch and the shockwave hit's body."""
+    sr = 44100
+
+    def load(vs):
+        sdir = cs2.export(vs + "_c", "sounds")
+        p = next(sdir.rglob(Path(vs).stem + ".wav"), None) or next(sdir.rglob(Path(vs).stem + ".mp3"), None)
+        raw = subprocess.run([str(ffmpeg), "-loglevel", "error", "-i", str(p), "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"],
+                             capture_output=True, check=True).stdout
+        return np.frombuffer(raw, dtype=np.float32).astype(np.float64)
+
+    def band(x, lo=None, hi=None):
+        # a smooth 4th-order filter in the frequency domain (low-pass above hi, high-pass below lo)
+        f = np.fft.rfftfreq(len(x), 1 / sr)
+        m = np.ones_like(f)
+        if hi:
+            m /= 1 + (f / hi) ** 4
+        if lo:
+            m *= 1 - 1 / (1 + (f / lo) ** 4)
+        return np.fft.irfft(np.fft.rfft(x) * m, len(x))
+
+    def level(x, seconds=0.3):
+        # even the loudness out (a slow RMS divided away), so the loop holds a steady rumble
+        w = int(seconds * sr)
+        env = np.sqrt(np.convolve(x * x, np.ones(w) / w, mode="same")) + 1e-4
+        return x / env
+
+    def save(x, name, sid):
+        x = x / (np.abs(x).max() + 1e-9) * 0.97
+        ogg = assets / "sounds" / (name + ".ogg")
+        ogg.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run([str(ffmpeg), "-y", "-loglevel", "error", "-f", "f32le", "-ar", str(sr), "-ac", "1", "-i", "-",
+                        "-c:a", "libvorbis", "-q:a", "6", str(ogg)], input=x.astype(np.float32).tobytes(), check=True)
+        sounds_json[sid] = {"sounds": [{"name": f"{NS}:{name}", "volume": 1.0}]}
+
+    wave = load("sounds/weapons/c4/c4_shockwave_01.vsnd")
+    thump = load("sounds/weapons/c4/c4_thump_01.vsnd")
+    boom = load("sounds/weapons/c4/c4_explode1.vsnd")
+    hit = load("sounds/weapons/c4/c4_shockwave_hit_02.vsnd")
+
+    # the rumble: 3 s of the roar's body under 260 Hz, the thump's body under 120 Hz, levelled; its last half second
+    # cross-faded into its first, so it loops without a seam
+    body = level(band(wave[int(0.4 * sr):int(3.4 * sr)], hi=260))
+    sub = thump[int(0.05 * sr):int(2.4 * sr)]
+    sub = level(band(np.resize(sub, len(body)), hi=120))
+    seg = 0.6 * body + 0.4 * sub
+    x = int(0.5 * sr)
+    loop = seg[x:].copy()
+    fade = np.linspace(0, 1, x)
+    loop[-x:] = loop[-x:] * (1 - fade) + seg[:x] * fade
+    save(loop, "c4/shockwave/rumble", "c4.shockwave.rumble")
+
+    # the crack: the explosion's first 0.6 s above 700 Hz with a fast decay, the thump, and the hit's body lined up on it
+    on = int(np.argmax(np.abs(boom) > 0.1 * np.abs(boom).max()))
+    crack = band(boom[on:on + int(0.6 * sr)], lo=700) * np.exp(-np.arange(int(0.6 * sr)) / (0.12 * sr))
+    hon = int(np.argmax(np.abs(hit) > 0.1 * np.abs(hit).max()))
+    body = hit[max(0, hon - int(0.03 * sr)):][:int(3.0 * sr)]
+    body = body * np.minimum(1, np.linspace(3, 0, len(body)))  # fades out over its last third
+    n = max(len(body), len(thump))
+    mix = np.zeros(n)
+    mix[:len(crack)] += 3.0 * crack
+    mix[:len(thump)] += 0.8 * thump
+    mix[:len(body)] += 0.35 * body
+    save(mix, "c4/shockwave/crack", "c4.shockwave.crack")
+    log("extras: the shockwave's rumble and crack")
+
+
+def bomb_icons(cs2, assets, log):
+    """CS2's planted-bomb icon (its team counter's, hud/teamcounter): the C4 (bomb_c4) and its rays (bomb_rays), white,
+    tinted in game: the planted bomb at the top of the screen, flashing red with the beeps, and the defuse bar's C4."""
+    import hud
+    d = cs2.export("panorama/images/hud/teamcounter/", "ui") / "panorama" / "images" / "hud" / "teamcounter"
+    svgs = [(name, d / f"teamcounter_bomb-planted{suffix}.svg") for name, suffix in (("bomb_c4", "-defused"), ("bomb_rays", "-lines"))]
+    got = hud.rasterise_aspect([s for s in svgs if s[1].exists()], (assets / "textures" / "gui" / "hud").resolve(), log, height=128)
+    log(f"extras: {len(got)} bomb icons")
+
+
+def write_extras(assets, add_sound, log, convert_c4, vsndevts_text):
     """Extras: the C4 (viewmodel with its clips, the planted model, icon) and its sounds, the announcer's bomb lines."""
     for event in EXTRA_EVENTS:
         add_sound(event)
+    for event, vol in EXTRA_LOUDER.items():
+        add_sound(event, sound_event_files(vsndevts_text, event)[0], vol)
     for sid, vsnd in EXTRA_FILES.items():
         add_sound(sid, [vsnd], 1.0)
     convert_c4()
-    log(f"extras: the C4, {len(EXTRA_EVENTS) + len(EXTRA_FILES)} sounds")
+    log(f"extras: the C4, {len(EXTRA_EVENTS) + len(EXTRA_LOUDER) + len(EXTRA_FILES)} sounds")
 
 
 def main():
@@ -1091,7 +1176,9 @@ def main():
                 sys.path.insert(0, str(HERE / "agent"))
                 import agent
                 agent.write_gun_skeleton(cs2, c4["id"], c4["_asset"]["model"], assets / "agents")  # in agents' hands
-            write_extras(assets, add_sound, log, convert_c4)
+            write_extras(assets, add_sound, log, convert_c4, vsndevts_text)
+            shockwave_sounds(cs2, assets, args.ffmpeg, sounds_json, log)
+            bomb_icons(cs2, assets, log)
         if "arms" in args.step:
             write_agent_arms(cs2, assets, arms_skel)
         guns = []

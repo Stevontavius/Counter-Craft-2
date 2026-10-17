@@ -11,14 +11,10 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvent;
 
 /**
- * The C4's client side (PlantedC4): CS2's bomb notices with the announcer, the equipped music kit's bomb countdown, the
- * planting / defusing progress bar, and E to defuse.
+ * The C4's client side (PlantedC4): CS2's bomb notices with the announcer, the equipped music kit's bomb countdown, CS2's
+ * defuse progress bar ({@link DefuseBar}), and E to defuse.
  */
 public final class BombHud {
-	private static final double ALERT_SECONDS = 5.0;
-	private static String alert1;
-	private static String alert2;
-	private static long alertAt;
 
 	private BombHud() {
 	}
@@ -43,6 +39,10 @@ public final class BombHud {
 	private static int thirdShots;
 	private static float thirdAt;
 	private static boolean plantShot;
+	private static boolean struckShot;
+	private static boolean waveShot;
+	private static boolean fireShot;
+	private static boolean smokeShot;
 
 	public static void tick(Minecraft mc) {
 		if (!TEST || mc.player == null) {
@@ -55,7 +55,17 @@ public final class BombHud {
 		boolean c4 = dev.countercraft.team.CsInventory.active(mc.player) && mc.player.getMainHandItem().getItem() instanceof dev.countercraft.gun.C4Item;
 		heldC4 = c4 ? heldC4 + 1 : 0;
 		dev.countercraft.client.GunKeys.FIRE.setDown(c4 && heldC4 > 35);
-		mc.options.keyInventory.setDown(mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult hit && hit.getEntity() instanceof PlantedC4);
+		// (held on while the defuse is locked in: a mob in front doesn't let go of it)
+		mc.options.keyInventory.setDown(mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult hit && hit.getEntity() instanceof PlantedC4
+				|| locked != -1);
+		if (invCheckIn > 0 && --invCheckIn == 0) {
+			boolean open = mc.gui.screen() instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>;
+			CounterCraft.LOG.info("[countercraft] selftest c4_defuse_no_inventory: {} screen={}", open ? "FAIL" : "PASS",
+					mc.gui.screen() == null ? "none" : mc.gui.screen().getClass().getSimpleName());
+			if (open) {
+				mc.gui.setScreen(null);
+			}
+		}
 		float plant = dev.countercraft.client.GunClient.plantProgress();
 		// planting holds you still and crouched: walk forward through it and see
 		mc.options.keyUp.setDown(plant > 0.2f && plant < 0.9f);
@@ -84,7 +94,8 @@ public final class BombHud {
 			lastFlash = f;
 		}
 		// the health HUD's warning: once lethal, once not
-		float blast = dev.countercraft.gun.PlantedC4.damageTo(mc.player);
+		var preview = mc.player.getAttached(dev.countercraft.gun.PlantedC4.PREVIEW);
+		float blast = preview != null ? preview.damage() : 0f;
 		boolean lethal = blast > 0 && blast >= mc.player.getHealth() + mc.player.getAbsorptionAmount();
 		hudTicks = blast > 0 && lethal == hudLethal ? hudTicks + 1 : 0;
 		hudLethal = lethal;
@@ -94,6 +105,27 @@ public final class BombHud {
 		debugTicks = dev.countercraft.client.BlastDebug.on() && soonest != null ? debugTicks + 1 : 0;
 		if (debugTicks == 40) {
 			shot(mc, "cc2-c4-debug.png");
+		}
+		// the wave spreading through the world, a moment after it went off
+		var waves = dev.countercraft.client.fx.ShockwaveFx.waves();
+		if (!waves.isEmpty() && waves.getFirst().front() > 9 && !fireShot) {
+			fireShot = true;
+			shot(mc, "cc2-c4-fireball.png");
+		}
+		if (!waves.isEmpty() && waves.getFirst().front() > 22 && !waveShot) {
+			waveShot = true;
+			shot(mc, "cc2-c4-wave.png");
+		}
+		if (!waves.isEmpty() && waves.getFirst().front() > 72 && !smokeShot) {
+			smokeShot = true;
+			shot(mc, "cc2-c4-smoke.png");
+		}
+		// struck by it: the shake and blur a moment in, and that it ran
+		if (dev.countercraft.client.fx.ShockwaveFx.hitTime() > 0.12 && !struckShot) {
+			struckShot = true;
+			shot(mc, "cc2-c4-struck.png");
+			CounterCraft.LOG.info("[countercraft] selftest c4_struck_shader: {} strength={}",
+					dev.countercraft.client.gpu.ShockwavePass.failed() ? "FAIL" : "PASS", dev.countercraft.client.fx.ShockwaveFx.strength());
 		}
 		if (plant > 0.5f && !plantShot) {
 			plantShot = true;
@@ -120,22 +152,68 @@ public final class BombHud {
 				msg -> CounterCraft.LOG.info("[countercraft] c4 test: {}", msg.getString()));
 	}
 
+	/** The bomb a defuse is locked onto (its entity id; -1: none), and whether E has started a defuse since it went down. */
+	private static int locked = -1;
+	private static boolean attempted;
+	/** Dev test: ticks until checking that letting go of a defuse didn't open the inventory. */
+	private static int invCheckIn;
+	/** Ticks E's clicks are still swallowed after letting go of a defuse (so letting go never opens the inventory). */
+	private static int swallow;
+	/** How far off the bomb you can look (degrees) before a locked defuse lets go. */
+	private static final double LOCK_ANGLE = 40;
+
 	/**
-	 * Start of client tick, before vanilla's keys: holding E (the inventory key) while aiming at a planted bomb in reach
-	 * defuses it (CS2's +use) instead of opening the inventory.
+	 * Start of client tick, before vanilla's keys: E (the inventory key) defuses (CS2's +use) instead of opening the
+	 * inventory. Holding it while aiming at a planted bomb in reach starts a defuse, and locks it in: it carries on
+	 * while E stays down, whatever walks in front (a mob between you and the bomb), until you let go of E or look more
+	 * than {@link #LOCK_ANGLE} off the bomb (or go out of reach). From that first press until a few ticks after you let
+	 * go, E's clicks are swallowed, so the inventory never opens over a defuse.
 	 */
 	public static void startTick(Minecraft mc) {
-		if (mc.player == null || mc.gui.screen() != null || !mc.options.keyInventory.isDown()) {
+		boolean held = mc.player != null && mc.gui.screen() == null && mc.options.keyInventory.isDown();
+		if (!held) {
+			if (attempted) {
+				swallow = 4;
+			}
+			attempted = false;
+			locked = -1;
+			if (swallow > 0) {
+				swallow--;
+				while (mc.options.keyInventory.consumeClick()) {
+					// letting go of a defuse: no inventory
+				}
+			}
 			return;
 		}
-		if (mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult hit && hit.getEntity() instanceof PlantedC4 bomb
-				&& mc.player.distanceTo(bomb) <= PlantedC4.DEFUSE_REACH) {
+		PlantedC4 bomb = null;
+		if (locked != -1 && mc.level.getEntity(locked) instanceof PlantedC4 b && inView(mc, b)) {
+			bomb = b; // locked in: whatever is in front of it
+		} else if (mc.hitResult instanceof net.minecraft.world.phys.EntityHitResult hit && hit.getEntity() instanceof PlantedC4 b
+				&& mc.player.distanceTo(b) <= PlantedC4.DEFUSE_REACH) {
+			bomb = b; // a new defuse
+		}
+		locked = bomb == null ? -1 : bomb.getId();
+		attempted |= bomb != null;
+		if (attempted) {
 			while (mc.options.keyInventory.consumeClick()) {
 				// E defuses here
 			}
+		}
+		if (bomb != null) {
 			net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
 					new dev.countercraft.net.C4ActionPayload(dev.countercraft.net.C4ActionPayload.DEFUSE, bomb.getId()));
 		}
+	}
+
+	/** The bomb is still where the defuser looks (within {@link #LOCK_ANGLE}) and in reach (the server's margin). */
+	private static boolean inView(Minecraft mc, PlantedC4 bomb) {
+		var eye = mc.player.getEyePosition();
+		var to = bomb.getBoundingBox().getCenter().subtract(eye);
+		if (mc.player.distanceTo(bomb) > PlantedC4.DEFUSE_REACH + 0.5 || to.lengthSqr() < 1e-6) {
+			return to.lengthSqr() < 1e-6;
+		}
+		double cos = mc.player.getViewVector(1f).dot(to.normalize());
+		return cos >= Math.cos(Math.toRadians(LOCK_ANGLE));
 	}
 
 	/** News from the server. */
@@ -150,17 +228,24 @@ public final class BombHud {
 			case C4Payload.PLANTED -> {
 				announce("announcer.bombpl");
 				MusicKit.play("bombplanted", "snd_mapobjective_volume");
-				// CS2's Cstrike_TitlesTXT_Bomb_Planted
-				alert("The bomb has been planted", p.seconds() + " seconds till detonation");
+				// CS2's Cstrike_TitlesTXT_Bomb_Planted, who planted it (the top left), the bomb at the top
+				BombNotices.planted(p.planter(), p.team());
+				BombNotices.alertLine(p.seconds() + " seconds till detonation");
 			}
 			case C4Payload.TEN_SECONDS -> MusicKit.play("bombtenseccount", "snd_tensecondwarning_volume");
 			case C4Payload.DEFUSED -> {
 				announce("announcer.bombdef");
+				if (TEST && invCheckIn == 0) {
+					invCheckIn = 12; // E let go after the defuse: no inventory
+				}
+				DefuseBar.defused();
 				MusicKit.stopTrack();
-				alert("The bomb has been defused", null); // SFUI_Notice_Bomb_Defused
+				BombNotices.alert("The bomb has been defused", null, 0xB5D4EE); // SFUI_Notice_Bomb_Defused
+				BombNotices.gone();
 			}
 			case C4Payload.EXPLODED -> {
 				MusicKit.stopTrack();
+				BombNotices.gone();
 				if (TEST) {
 					CounterCraft.LOG.info("[countercraft] selftest c4_flash_beats: {} early rises={} fades={} late on/off only={} toggles={}",
 							earlyRises >= 3 && earlyFades && lateHard && lateToggles >= 4 ? "PASS" : "FAIL", earlyRises, earlyFades, lateHard, lateToggles);
@@ -169,12 +254,6 @@ public final class BombHud {
 			default -> {
 			}
 		}
-	}
-
-	private static void alert(String line1, String line2) {
-		alert1 = line1;
-		alert2 = line2;
-		alertAt = System.nanoTime();
 	}
 
 	/** The announcer's line (a UI sound: everyone hears it alike). */
@@ -188,52 +267,22 @@ public final class BombHud {
 
 	public static void draw(GuiGraphicsExtractor g) {
 		Minecraft mc = Minecraft.getInstance();
-		int w = g.guiWidth();
-		int h = g.guiHeight();
-		float k = CsUi.k(h);
-		double t = (System.nanoTime() - alertAt) / 1e9;
-		if (alert1 != null && t < ALERT_SECONDS) {
-			float a = (float) Math.min(1.0, Math.min(t / 0.15, (ALERT_SECONDS - t) / 0.5));
-			int alpha = Math.round(a * 255) << 24;
-			float tw = Math.max(CsUi.textWidth(alert1, 22, h), alert2 == null ? 0 : CsUi.textWidth(alert2, 16, h)) + 48 * k;
-			float bh = (alert2 == null ? 40 : 62) * k;
-			float y = 400 * k; // under a challenge's MVP strip (WinPanel: 286 to 376)
-			g.fill((int) (w / 2f - tw / 2), (int) y, (int) (w / 2f + tw / 2), (int) (y + bh), Math.round(a * 0xB0) << 24 | 0x101214);
-			CsUi.text(g, alert1, w / 2f, y + 9 * k, 22, h, alpha | 0xFFFFFF, 0);
-			if (alert2 != null) {
-				CsUi.text(g, alert2, w / 2f, y + 38 * k, 16, h, alpha | 0xD0D0D0, 0);
-			}
-		}
+		BombNotices.draw(g, mc);
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
-		// planting (holding use with the C4) or defusing (the bomb says it's you)
-		String label = null;
-		float progress = 0f;
-		if (dev.countercraft.client.GunClient.plantProgress() >= 0f) {
-			label = "PLANTING";
-			progress = dev.countercraft.client.GunClient.plantProgress();
-		} else {
+		// defusing: CS2's progress bar (planting has none in CS2: the C4's own screen shows it)
+		DefuseBar.draw(g, mc);
+		if (TEST) {
+			float progress = 0f;
 			for (PlantedC4 bomb : mc.level.getEntitiesOfClass(PlantedC4.class, mc.player.getBoundingBox().inflate(6))) {
-				if (bomb.defuser() == mc.player.getId()) {
-					label = "DEFUSING";
-					progress = bomb.defuseProgress();
-				}
+				progress = bomb.defuser() == mc.player.getId() ? bomb.defuseProgress() : progress;
 			}
-		}
-		if (TEST && "DEFUSING".equals(label) && progress > 0.5f && !defuseShot) {
-			defuseShot = true;
-			shot(mc, "cc2-c4-defusing-" + (++defuses) + ".png");
-		} else if (TEST && !"DEFUSING".equals(label)) {
-			defuseShot = false;
-		}
-		if (label != null) {
-			float bw = 300 * k;
-			float x = w / 2f - bw / 2;
-			float y = h * 0.62f;
-			CsUi.text(g, label, w / 2f, y - 20 * k, 16, h, 0xFFFFFFFF, 0);
-			g.fill((int) x, (int) y, (int) (x + bw), (int) (y + 8 * k), 0xA0000000);
-			g.fill((int) x, (int) y, (int) (x + bw * Math.min(1f, progress)), (int) (y + 8 * k), 0xFFFFFFFF);
+			// three stages of it (red, yellow, green), as CS2's
+			float[] at = {0.08f, 0.5f, 0.88f};
+			if (defuses < at.length && progress > at[defuses]) {
+				shot(mc, "cc2-c4-defusing-" + (++defuses) + ".png");
+			}
 		}
 	}
 }

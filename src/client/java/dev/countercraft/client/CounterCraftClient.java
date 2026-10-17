@@ -45,6 +45,7 @@ public class CounterCraftClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(MobHeadsClient::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(HitboxDebug::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(GrenadeTracer::tick);
+		ClientTickEvents.END_CLIENT_TICK.register(dev.countercraft.client.fx.C4Explosion::tick);
 		// CS2 death cam, death panel and ragdolls
 		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.DeathInfoPayload.TYPE,
 				(payload, context) -> {
@@ -114,7 +115,11 @@ public class CounterCraftClient implements ClientModInitializer {
 		HudElementRegistry.addLast(CounterCraft.id("round_banner"), (g, delta) -> dev.countercraft.client.hud.RoundCycle.renderBanner(g));
 		dev.countercraft.client.hud.BannerDemo.register();
 		HudElementRegistry.addLast(CounterCraft.id("bomb"), (g, delta) -> dev.countercraft.client.hud.BombHud.draw(g));
-		HudElementRegistry.addLast(CounterCraft.id("blast_debug"), (g, delta) -> BlastDebug.draw(g));
+		// the debug panels (blast, grenades), stacked so they never overlap
+		HudElementRegistry.addLast(CounterCraft.id("debug_panels"), (g, delta) -> DebugPanels.draw(g));
+		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.BlastMapPayload.TYPE, (payload, context) -> BlastDebug.onMap(payload));
+		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.ShockwavePayload.TYPE, (payload, context) -> dev.countercraft.client.fx.ShockwaveFx.on(payload));
+		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.BlastWavePayload.TYPE, (payload, context) -> dev.countercraft.client.fx.ShockwaveFx.wave(payload));
 		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(dev.countercraft.client.hud.BombHud::tick);
 		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.START_CLIENT_TICK.register(dev.countercraft.client.hud.BombHud::startTick);
 		ClientPlayNetworking.registerGlobalReceiver(dev.countercraft.net.C4Payload.TYPE,

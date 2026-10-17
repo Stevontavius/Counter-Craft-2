@@ -89,7 +89,7 @@ public final class DeathTracker {
 				killer == null ? Component.empty() : killer.getDisplayName(), killer instanceof Player, health, held, cs,
 				Math.min(100, Math.round(t[0])), (int) t[1], Math.round(t[2]), (int) t[3], source.getLocalizedDeathMessage(player), cause,
 				SurvivalRecord.of(player).streak(), // read before the death resets it
-				dev.countercraft.team.AnotherChance.died(player));
+				dev.countercraft.team.AnotherChance.died(player), (flags & KillFeedPayload.F_HEADSHOT) != 0);
 		if (ServerPlayNetworking.canSend(player, DeathInfoPayload.TYPE)) {
 			ServerPlayNetworking.send(player, info);
 		}
@@ -99,21 +99,29 @@ public final class DeathTracker {
 		Entity direct = source.getDirectEntity();
 		if (direct instanceof Projectile pr && pr.getDeltaMovement().lengthSqr() > 1e-4) {
 			dir = pr.getDeltaMovement().normalize();
-			speed = 3f;
+			speed = (flags & KillFeedPayload.F_HEADSHOT) != 0 ? 4.5f : 3f;
 		} else if (killer != null) {
 			dir = player.position().subtract(killer.position()).multiply(1, 0, 1);
 			dir = dir.lengthSqr() < 1e-6 ? player.getLookAngle().reverse() : dir.normalize();
-			speed = weapon != null && (weapon.startsWith("knife") || weapon.equals("bayonet")) ? 2f : 3f;
+			// a knife shoves; a shot knocks the chest back, the head (a headshot) harder, snapping it back
+			speed = weapon != null && (weapon.startsWith("knife") || weapon.equals("bayonet")) ? 2f
+					: (flags & KillFeedPayload.F_HEADSHOT) != 0 ? 4.5f : 3f;
 		} else {
 			dir = player.getDeltaMovement().lengthSqr() > 1e-4 ? player.getDeltaMovement().normalize() : player.getLookAngle().reverse();
 			speed = 1f;
 		}
-		if (source.is(net.minecraft.tags.DamageTypeTags.IS_EXPLOSION)) {
+		Vec3 shockwave = dev.countercraft.gun.PlantedC4.ragdollPush(player.getUUID());
+		boolean blast = shockwave != null || source.is(net.minecraft.tags.DamageTypeTags.IS_EXPLOSION);
+		if (shockwave != null) {
+			// the C4's shockwave: along the way it was travelling, harder the closer to the bomb
+			speed = (float) shockwave.length();
+			dir = shockwave.normalize();
+		} else if (blast) {
 			speed = 7f;
 			dir = dir.add(0, 0.6, 0).normalize();
 		}
 		RagdollPayload rag = new RagdollPayload(player.getId(), (float) dir.x, (float) dir.y, (float) dir.z, speed,
-				(flags & KillFeedPayload.F_HEADSHOT) != 0);
+				(flags & KillFeedPayload.F_HEADSHOT) != 0, blast);
 		for (ServerPlayer sp : PlayerLookup.tracking(player)) {
 			if (ServerPlayNetworking.canSend(sp, RagdollPayload.TYPE)) {
 				ServerPlayNetworking.send(sp, rag);

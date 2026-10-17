@@ -70,6 +70,7 @@ public final class CcOptionsScreen extends Screen {
 		open(parent);
 	}
 
+
 	public static void open(Screen parent) {
 		net.minecraft.client.Minecraft.getInstance().gui.setScreen(new CcOptionsScreen(parent));
 	}
@@ -250,6 +251,27 @@ public final class CcOptionsScreen extends Screen {
 		return y + ROW;
 	}
 
+	/** The Aspect Ratio slider's text: the ratio the world is drawn at ("Native (16:9)", "4:3 Stretched", "2.37:1 Skinny"). */
+	private static String aspectLabel(double v) {
+		var win = net.minecraft.client.Minecraft.getInstance().getWindow();
+		double ratio = win.getHeight() > 0 ? (double) win.getWidth() / win.getHeight() : 16 / 9.0;
+		if (Math.abs(v) < 1e-6) {
+			return "Native (" + ratioName(ratio) + ")";
+		}
+		return ratioName(ratio * Math.pow(0.75, v)) + (v > 0 ? " Stretched" : " Skinny");
+	}
+
+	private static String ratioName(double r) {
+		String[] names = {"5:4", "4:3", "3:2", "16:10", "16:9", "2:1", "21:9", "32:9"};
+		double[] values = {1.25, 4 / 3.0, 1.5, 1.6, 16 / 9.0, 2, 64 / 27.0, 32 / 9.0};
+		for (int i = 0; i < names.length; i++) {
+			if (Math.abs(r / values[i] - 1) < 0.01) {
+				return names[i];
+			}
+		}
+		return String.format("%.2f:1", r);
+	}
+
 	private int slider(String text, double min, double max, double step, double current, java.util.function.DoubleFunction<String> fmt,
 			java.util.function.DoubleConsumer apply, int y) {
 		label(text, y + 6);
@@ -323,7 +345,8 @@ public final class CcOptionsScreen extends Screen {
 	private int hud(int y) {
 		y = section("HUD", y);
 		y = toggle("Kill Feed / Death Notices", "CS2's death notices in the top right corner", CcOptions.killFeed(), CcOptions::setKillFeed, y);
-		y = toggle("Compass", "A heading strip at the top of the screen, under the player locator bar", CcOptions.compass(), CcOptions::setCompass, y);
+		y = toggle("Compass", "A heading strip at the top of the screen, under the player locator bar (off by default)", CcOptions.compass(),
+				CcOptions::setCompass, y);
 		y = toggle("CS Hotbar Rarity Colours", "Underlines each weapon in the CS hotbar in its finish's rarity colour (Mil-Spec blue, Covert red...)",
 				CcOptions.hotbarRarity(), CcOptions::setHotbarRarity, y);
 		y = toggle("X-Ray While Alive", "Your teammates show through walls in their team colour (T gold, CT blue). In hardcore, where everyone is on one "
@@ -489,6 +512,12 @@ public final class CcOptionsScreen extends Screen {
 	}
 
 	private int video(int y) {
+		y = section("DISPLAY", y);
+		y = slider("Aspect Ratio", -1, 1, 0.05, CcOptions.aspect(), CcOptionsScreen::aspectLabel, v -> {
+			CcOptions.setAspect((float) v);
+			CcOptions.save();
+		}, y);
+		y = note("Middle: native. Left: skinny. Right: stretched, to 4:3 on a 16:9 screen.", y);
 		y = section("GPU RENDERING", y);
 		y = toggle("GPU Player Rendering", "Players, ragdolls and dropped guns drawn on the graphics card (much faster). Turn off only if they look wrong",
 				CcOptions.gpuAgents(), v -> {

@@ -16,9 +16,9 @@ import net.minecraft.world.phys.Vec3;
  * CS2's death cam for the local player, timed on CS's freeze cam cvars: the view leaves the eyes and settles behind the
  * ragdoll (spec_freeze_deathanim_time 0.8 s), travels to frame the killer (spec_freeze_traveltime 0.4 s, between
  * spec_freeze_distance_min 96 and _max 200 units from them, narrowing the view towards spec_freeze_target_fov 42) and
- * holds on them (spec_freeze_time 3 s). Throughout, CS2's death cam colour grading
- * (death_cam_phase1.vpost: a red tint, post_effect/deathcam_*) fades in; at the end it fades towards black
- * (death_cam_phase2 maps to black) and the death screen offers Respawn / Main Menu. Music: the equipped kit's death
+ * holds on them (spec_freeze_time 3 s); killed by a mob, it stays on the body. Throughout, CS2's death cam colour
+ * grading (death_cam_phase1.vpost: a red tint, post_effect/deathcam_*) fades in; at the end it fades to solid black
+ * (death_cam_phase2 maps to black) and the death screen shows on the black, with Respawn / Main Menu. Music: the equipped kit's death
  * cam track in survival and while Another Chance keeps the run going, its round lost track when a hardcore run ends. Approximations: the cvar defaults are CS:GO's (CS2 keeps the
  * same names), the camera path between the points is a smooth blend.
  */
@@ -28,6 +28,8 @@ public final class DeathCam {
 	private static final double TRAVEL = 0.4;
 	private static final double FREEZE = 3.0;
 	public static final double END = DEATHANIM + TRAVEL + FREEZE;
+	/** The fade to black at the end. */
+	public static final double FADE = 0.5;
 	private static final double UNIT = 0.0254;
 	private static final double FREEZE_MIN = 96 * UNIT;
 	private static final double FREEZE_MAX = 200 * UNIT;
@@ -41,6 +43,9 @@ public final class DeathCam {
 	private static float yaw;
 	private static float pitch;
 	private static boolean active;
+	/** The player who died (a respawn makes a new one), and whether this client has seen them dead yet. */
+	private static Entity died;
+	private static boolean seenDead;
 
 	/** The camera this frame: position, yaw, pitch (Minecraft degrees), FOV scale. */
 	public record Pose(Vec3 pos, float yaw, float pitch, float fovScale) {
@@ -77,6 +82,8 @@ public final class DeathCam {
 		yaw = mc.player.getYRot();
 		pitch = mc.player.getXRot();
 		active = true;
+		died = mc.player;
+		seenDead = mc.player.isDeadOrDying();
 		boolean hardcore = mc.level != null && mc.level.getLevelData().isHardcore();
 		if (hardcore && !p.anotherChance()) {
 			MusicKit.play("lostround", "snd_roundend_volume");
@@ -91,11 +98,22 @@ public final class DeathCam {
 		}
 		active = false;
 		info = null;
+		died = null;
 	}
 
-	/** Every client tick: ends once the player is alive again (respawned) or left the world. */
+	/**
+	 * Every client tick: ends once the player has respawned (a new player, or seen dead and now alive) or left the world.
+	 * The death news can come a tick before this client hears its health is gone (a C4 kill at the end of the server's
+	 * tick, a shot between ticks), so a player not yet dead here is still dying.
+	 */
 	public static void tick(Minecraft mc) {
-		if (active && (mc.player == null || mc.player.isAlive() && !mc.player.isDeadOrDying())) {
+		if (!active) {
+			return;
+		}
+		if (mc.player != null && mc.player == died && mc.player.isDeadOrDying()) {
+			seenDead = true;
+		}
+		if (mc.player == null || mc.player != died || seenDead && mc.player.isAlive() && !mc.player.isDeadOrDying()) {
 			stop();
 		}
 	}
@@ -145,8 +163,9 @@ public final class DeathCam {
 		float y = lerpAngle(yaw, chaseLook[0], (float) k);
 		float p = (float) (pitch + (chaseLook[1] - pitch) * k);
 		float fov = 1f;
+		// CS2's freeze cam travels to the player who killed you; a mob's kill stays on your body
 		Entity killer = killer(mc);
-		if (killer != null && t > DEATHANIM) {
+		if (killer instanceof net.minecraft.world.entity.player.Player && t > DEATHANIM) {
 			Vec3 head = killer.getEyePosition(partial);
 			Vec3 toBody = body.subtract(head);
 			double dist = toBody.length();
@@ -177,13 +196,13 @@ public final class DeathCam {
 		return CounterCraft.id("deathcam_" + Math.max(1, step));
 	}
 
-	/** Phase 2: the fade to black over the last half second (kept at 70 % once the buttons show). */
+	/** Phase 2: the fade to solid black over the last half second; the death screen then shows on the black. */
 	public static float blackout() {
 		if (!active) {
 			return 0f;
 		}
-		double t = seconds() - (END - 0.5);
-		return (float) Math.max(0, Math.min(0.7, t / 0.5 * 0.7));
+		double t = seconds() - (END - FADE);
+		return (float) Math.max(0, Math.min(1, t / FADE));
 	}
 
 	/** Post effects to add this frame (LocalPlayerMixin). */
